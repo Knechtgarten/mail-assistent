@@ -1,0 +1,116 @@
+/* Knechtgarten Mail-Assistent v2 - Panel direkt im Compose-/Antwortfenster */
+
+.kg-btn {
+  background: #323E4E;
+  color: #fff;
+  border-radius: 16px;
+  padding: 6px 12px;
+  font-size: 11.5px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  border: none;
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+.kg-btn:hover { background: #4C5C70; }
+.kg-btn svg { width: 13px; height: 13px; stroke: #D1DB5F; flex-shrink: 0; }
+.kg-btn.kg-on { background: #4C5C70; }
+
+.kg-panel, .kg-panel * { box-sizing: border-box; }
+.kg-panel {
+  display: none;
+  margin: 8px 0;
+  border: 1.5px solid #D6E7F4;
+  border-radius: 12px;
+  background: #F5F7F9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 12.5px;
+  color: #232B35;
+  flex-direction: column;
+}
+.kg-panel.kg-show { display: flex; }
+
+.kg-scroll { padding: 12px 14px; width: 100%; }
+
+.kg-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+.kg-chip {
+  background: #fff; color: #323E4E; border: 1px solid #E1E5E9; border-radius: 12px;
+  padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.kg-chip:hover { background: #D6E7F4; border-color: #D6E7F4; }
+.kg-chip svg { width: 11px; height: 11px; vertical-align: -1px; margin-right: 3px; }
+.kg-chip-express { border-color: #D1DB5F; }
+.kg-chip-express svg { stroke: #8b9b2a; }
+
+.kg-row { display: flex; gap: 5px; margin-top: 8px; }
+.kg-textarea {
+  flex: 1; min-width: 0; border: 1px solid #E1E5E9; border-radius: 14px; padding: 8px 12px;
+  font: inherit; font-size: 12px; line-height: 1.4; resize: none; background: #fff; color: #232B35;
+}
+.kg-textarea:focus { outline: none; border-color: #323E4E; }
+.kg-micbtn {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; border: 1px solid #E1E5E9;
+  background: #fff; color: #8B9097; display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.kg-micbtn:hover { border-color: #323E4E; color: #323E4E; }
+.kg-micbtn.kg-recording { background: #B4655F; border-color: #B4655F; color: #fff; }
+.kg-micbtn svg { width: 13px; height: 13px; }
+
+.kg-chat { margin-top: 9px; padding-top: 9px; border-top: 1px solid #E1E5E9; }
+.kg-chat-first { margin-top: 0; padding-top: 0; border-top: none; }
+.kg-quickchips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 9px; }
+
+/* Chat-Verlauf: alle Versionen bleiben sichtbar, eigener Scroll-Bereich statt
+   das ganze Panel wachsen zu lassen. Schrift bewusst klein, damit man die
+   Uebersicht behaelt - die aktuelle Version ist ueber den Button optisch klar
+   erkennbar. */
+.kg-verlauf { max-height: 280px; overflow-y: auto; padding-right: 2px; font-size: 10.5px; }
+.kg-verlauf .kg-msg:first-child { margin-top: 0; }
+
+.kg-msg { margin-bottom: 7px; }
+.kg-msg.kg-user .kg-bubble { font-size: 10px; padding: 4px 8px; }
+.kg-msg.kg-ai .kg-bubble { font-size: 10.5px; padding: 7px 9px; line-height: 1.4; }
+
+/* Aeltere Versionen: dezenter Textlink */
+.kg-msg.kg-ai .kg-diese-version {
+  display: block; margin-top: 4px; background: none; border: none; color: #8B9097;
+  font-size: 10px; font-weight: 600; text-decoration: underline; cursor: pointer; padding: 2px 0;
+}
+.kg-msg.kg-ai .kg-diese-version:hover { color: #323E4E; }
+
+/* Aktuelle (neueste) Version: gleicher Link-Stil wie die aelteren, nur fett
+   und mit gruenem Rahmen um die Bubble erkennbar - kein grosser Balken. */
+.kg-msg.kg-ai.kg-aktuell .kg-bubble { border-color: #D1DB5F; }
+.kg-msg.kg-ai.kg-aktuell .kg-diese-version { color: #323E4E; font-weight: 800; }
+.kg-msg.kg-user { text-align: right; }
+.kg-msg.kg-user .kg-bubble {
+  background: #D6E7F4; color: #323E4E; display: inline-block; border-radius: 10px 10px 2px 10px;
+  padding: 5px 9px; font-size: 11px; max-width: 85%;
+}
+.kg-msg.kg-ai .kg-bubble {
+  background: #fff; color: #232B35; display: block; border-radius: 2px 10px 10px 10px;
+  padding: 8px 10px; font-size: 11.5px; line-height: 1.5; border: 1px solid #E1E5E9; white-space: pre-wrap;
+}
+.kg-msg.kg-frage .kg-bubble {
+  background: #D6E7F4; color: #323E4E; display: block; border-radius: 2px 10px 10px 10px;
+  padding: 8px 10px; font-size: 11.5px; line-height: 1.5; font-weight: 600;
+}
+.kg-answers { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
+.kg-answer {
+  background: #fff; color: #323E4E; border: 1px solid #323E4E; border-radius: 12px;
+  padding: 4px 11px; font-size: 11px; font-weight: 700; cursor: pointer;
+}
+.kg-answer:hover { background: #323E4E; color: #fff; }
+
+.kg-followuprow { display: flex; gap: 5px; margin-top: 9px; }
+.kg-followuprow input {
+  flex: 1; border: 1px solid #E1E5E9; border-radius: 14px; padding: 6px 12px;
+  font: inherit; font-size: 11.5px; background: #fff; color: #232B35;
+}
+.kg-followuprow input:focus { outline: none; border-color: #323E4E; }
+
+.kg-lade { color: #8B9097; font-size: 11.5px; padding: 6px 0; }
