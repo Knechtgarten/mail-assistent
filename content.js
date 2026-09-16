@@ -196,9 +196,9 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
         zustand.aktuellerEntwurf = vorlage.inhalt;
         zustand.aktuelleVorlageId = vorlage.id;
         if (vorlage.betreff) zustand.aktuellerBetreff = vorlage.betreff;
-        kgZeigeEntwurf(chatBereich, bodyEl, zustand);
+        kgZeigeEntwurf(chatBereich, bodyEl, zustand, `Vorlage: ${vorlage.titel}`);
       } else {
-        kgGeneriere({ modus: 'verfassen', vorlageId: chip.dataset.id }, chatBereich, bodyEl, zustand);
+        kgGeneriere({ modus: 'verfassen', vorlageId: chip.dataset.id }, chatBereich, bodyEl, zustand, vorlage ? `Vorlage: ${vorlage.titel}` : undefined);
       }
     });
   });
@@ -210,7 +210,7 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
       if (zustand.aktuellerEntwurf) {
         kgGeneriere({ modus: 'nachbessern', aktuellerEntwurf: zustand.aktuellerEntwurf, anweisung: text, richtung: 'verfassen', vorlageId: zustand.aktuelleVorlageId }, chatBereich, bodyEl, zustand, text);
       } else {
-        kgGeneriere({ modus: 'verfassen', stichworte: text }, chatBereich, bodyEl, zustand);
+        kgGeneriere({ modus: 'verfassen', stichworte: text }, chatBereich, bodyEl, zustand, text);
       }
       textarea.value = '';
     }
