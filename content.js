@@ -177,8 +177,8 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
   scroll.innerHTML = `
     <div class="kg-chips">${vorlagen.map(v => `<span class="kg-chip${istExpress(v) ? ' kg-chip-express' : ''}" data-id="${v.id}" title="${istExpress(v) ? 'Express - wird sofort eingefuegt' : ''}">${istExpress(v) ? kgSvg(KG_ICON_BLITZ, 11) : ''}${kgEscape(v.titel)}</span>`).join('')}</div>
     <div class="kg-row">
-      <textarea class="kg-textarea" rows="1" placeholder="Eigene Stichworte oder Anweisung … (Enter zum Erstellen)"></textarea>
       <button class="kg-micbtn" title="Diktieren">${kgSvg(KG_ICON_MIC)}</button>
+      <textarea class="kg-textarea" rows="1" placeholder="Eigene Stichworte oder Anweisung … (Enter zum Erstellen)"></textarea>
     </div>
     <div class="kg-chat-bereich"></div>`;
 
@@ -195,6 +195,7 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
         // so bleibt die Moeglichkeit zum Nachbessern vor dem Uebernehmen.
         zustand.aktuellerEntwurf = vorlage.inhalt;
         zustand.aktuelleVorlageId = vorlage.id;
+        if (vorlage.betreff) zustand.aktuellerBetreff = vorlage.betreff;
         kgZeigeEntwurf(chatBereich, bodyEl, zustand);
       } else {
         kgGeneriere({ modus: 'verfassen', vorlageId: chip.dataset.id }, chatBereich, bodyEl, zustand);
@@ -294,6 +295,7 @@ async function kgGeneriere(payload, chatBereich, bodyEl, zustand, nutzerNachrich
     if (data.aktion === 'entwurf') {
       zustand.aktuellerEntwurf = data.text;
       if (payload.vorlageId) zustand.aktuelleVorlageId = payload.vorlageId;
+      if (data.betreff) zustand.aktuellerBetreff = data.betreff;
       kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht);
     } else if (data.aktion === 'rueckfrage') {
       kgZeigeRueckfrage(chatBereich, data, bodyEl, zustand);
@@ -332,12 +334,30 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
 
     chatBereich.insertAdjacentHTML('beforeend', `
       <div class="kg-verlauf"></div>
+      <div class="kg-quickchips kg-anrede-chips">
+        <span class="kg-chip" data-anrede="Du">Du</span>
+        <span class="kg-chip" data-anrede="Ihr">Ihr</span>
+        <span class="kg-chip" data-anrede="Sie">Sie</span>
+      </div>
       <div class="kg-quickchips kg-quick-nachbessern"></div>
       <div class="kg-followuprow">
-        <input type="text" placeholder="Nachbessern oder eigene Anweisung…">
         <button class="kg-micbtn" title="Diktieren">${kgSvg(KG_ICON_MIC)}</button>
+        <input type="text" placeholder="Nachbessern oder eigene Anweisung…">
       </div>`);
     verlauf = chatBereich.querySelector('.kg-verlauf');
+
+    // Anrede-Chips: immer fest vorhanden (unabhaengig von den anpassbaren
+    // Nachbessern-Buttons), da Du/Ihr/Sie eine Grundfunktion ist, kein
+    // optionales Extra. Loest sofort eine Umformulierung des aktuellen
+    // Entwurfs aus - keine eigene KI-Anbindung noetig, laeuft einfach als
+    // Nachbessern-Anweisung.
+    chatBereich.querySelectorAll('.kg-anrede-chips .kg-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const anrede = chip.dataset.anrede;
+        const anweisung = `Die ganze Mail konsequent per "${anrede}" umformulieren (Anrede, Verbformen und Pronomen anpassen)${anrede === 'Ihr' ? ' - "Ihr" ist hier die informelle Mehrzahl-Anrede (mehrere Personen, mit denen man per Du ist), nicht die formelle "Sie"-Form' : ''}.`;
+        kgGeneriere({ modus: 'nachbessern', aktuellerEntwurf: zustand.aktuellerEntwurf, anweisung, vorlageId: zustand.aktuelleVorlageId }, chatBereich, bodyEl, zustand, `Auf "${anrede}" umstellen`);
+      });
+    });
 
     kgLadeNachbesserButtons(chatBereich.querySelector('.kg-quick-nachbessern'), (anweisung) => {
       kgGeneriere({ modus: 'nachbessern', aktuellerEntwurf: zustand.aktuellerEntwurf, anweisung, vorlageId: zustand.aktuelleVorlageId }, chatBereich, bodyEl, zustand, anweisung);
@@ -369,10 +389,11 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
   const dieserText = zustand.aktuellerEntwurf;
   const aiDiv = document.createElement('div');
   aiDiv.className = 'kg-msg kg-ai kg-aktuell';
-  aiDiv.innerHTML = `<div class="kg-bubble">${kgEscape(dieserText)}</div><button class="kg-diese-version">In Mail übernehmen</button>`;
+  aiDiv.innerHTML = `<div class="kg-bubble">${kgMarkdownZuHtml(dieserText)}</div><button class="kg-diese-version">In Mail übernehmen</button>`;
   verlauf.appendChild(aiDiv);
   aiDiv.querySelector('.kg-diese-version').addEventListener('click', () => {
     zustand.aktuellerEntwurf = dieserText;
+    kgSetzeBetreff(zustand.aktuellerBetreff);
     kgUebernehmeInMail(bodyEl, dieserText);
     kgSchliessePanel(zustand);
   });
@@ -397,24 +418,78 @@ function kgZeigeRueckfrage(chatBereich, data, bodyEl, zustand) {
 }
 
 // ----------------------------------------------------------------------------
+// Kleine, kontrollierte Markdown-Teilmenge in HTML umwandeln: **fett**,
+// *kursiv*, "- " Aufzaehlungen und "1. " nummerierte Listen. Text wird zuerst
+// escaped (kein rohes HTML aus Vorlagen/KI-Text moeglich) - erst danach
+// werden gezielt eigene Tags eingefuegt, das ist sicher, weil nur unsere
+// eigenen festen Muster erkannt werden.
+// ----------------------------------------------------------------------------
+function kgInlineFormat(s) {
+  let out = kgEscape(s);
+  out = out.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  out = out.replace(/\*(.+?)\*/g, '<i>$1</i>');
+  return out;
+}
+function kgMarkdownZuHtml(text) {
+  const zeilen = String(text ?? '').split('\n');
+  const htmlZeilen = [];
+  let listenTyp = null; // 'ul' | 'ol' | null
+  const listeSchliessen = () => { if (listenTyp) { htmlZeilen.push(`</${listenTyp}>`); listenTyp = null; } };
+
+  zeilen.forEach(zeile => {
+    const bulletMatch = zeile.match(/^\s*-\s+(.*)$/);
+    const nummeriertMatch = zeile.match(/^\s*\d+\.\s+(.*)$/);
+    if (bulletMatch) {
+      if (listenTyp !== 'ul') { listeSchliessen(); htmlZeilen.push('<ul>'); listenTyp = 'ul'; }
+      htmlZeilen.push(`<li>${kgInlineFormat(bulletMatch[1])}</li>`);
+    } else if (nummeriertMatch) {
+      if (listenTyp !== 'ol') { listeSchliessen(); htmlZeilen.push('<ol>'); listenTyp = 'ol'; }
+      htmlZeilen.push(`<li>${kgInlineFormat(nummeriertMatch[1])}</li>`);
+    } else {
+      listeSchliessen();
+      htmlZeilen.push(zeile.trim() === '' ? '<br>' : `<div>${kgInlineFormat(zeile)}</div>`);
+    }
+  });
+  listeSchliessen();
+  return htmlZeilen.join('');
+}
+
+// Betreff-Feld setzen (nur beim Verfassen vorhanden, bei Antworten gibt es
+// keins - Gmail behaelt dort automatisch "Re: ..."). Muss ueber die native
+// Value-Setter-Funktion laufen, sonst merkt Gmails eigenes React-artiges UI
+// die Aenderung nicht.
+function kgSetzeBetreff(betreff) {
+  if (!betreff) return;
+  const feld = document.querySelector('input[name="subjectbox"]');
+  if (!feld) return;
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+  setter.call(feld, betreff);
+  feld.dispatchEvent(new Event('input', { bubbles: true }));
+  feld.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+// ----------------------------------------------------------------------------
 // Entwurf ins Mailfeld uebernehmen - eigenen Text vor einem evtl. zitierten
-// Verlauf einfuegen, das Zitat selbst bleibt unveraendert stehen.
+// Verlauf einfuegen, das Zitat selbst bleibt unveraendert stehen. Als HTML
+// eingefuegt (nicht nur Text), damit Fett/Kursiv/Listen wirklich als
+// Formatierung ankommen statt als rohe Sternchen/Striche.
 // ----------------------------------------------------------------------------
 function kgUebernehmeInMail(bodyEl, text) {
   bodyEl.focus();
   const sel = window.getSelection();
   const range = document.createRange();
   const zitat = bodyEl.querySelector('blockquote, .gmail_quote');
+  const html = kgMarkdownZuHtml(text) + '<br><br>';
   try {
     range.setStart(bodyEl, 0);
     if (zitat) range.setEndBefore(zitat); else range.selectNodeContents(bodyEl);
     sel.removeAllRanges();
     sel.addRange(range);
-    document.execCommand('insertText', false, text + '\n\n');
+    document.execCommand('insertHTML', false, html);
   } catch (e) {
     // Falls die Bereichs-Auswahl fehlschlaegt (z.B. ungewohnte Gmail-Struktur):
     // Text einfach am aktuellen Cursor einfuegen, nichts loeschen.
-    document.execCommand('insertText', false, text + '\n\n');
+    document.execCommand('insertHTML', false, html);
   }
 }
 

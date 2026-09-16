@@ -64,6 +64,12 @@
 .kg-chat-first { margin-top: 0; padding-top: 0; border-top: none; }
 .kg-quickchips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 9px; }
 
+/* Anrede-Chips (Du/Ihr/Sie): immer fest vorhanden, darum optisch leicht
+   abgesetzt von den anpassbaren Nachbessern-Buttons darunter. */
+.kg-anrede-chips { margin-top: 0; }
+.kg-anrede-chips .kg-chip { border-color: #D6E7F4; }
+.kg-anrede-chips .kg-chip:hover { background: #D6E7F4; }
+
 /* Chat-Verlauf: alle Versionen bleiben sichtbar, eigener Scroll-Bereich statt
    das ganze Panel wachsen zu lassen. Schrift bewusst klein, damit man die
    Uebersicht behaelt - die aktuelle Version ist ueber den Button optisch klar
@@ -74,6 +80,8 @@
 .kg-msg { margin-bottom: 7px; }
 .kg-msg.kg-user .kg-bubble { font-size: 10px; padding: 4px 8px; }
 .kg-msg.kg-ai .kg-bubble { font-size: 10.5px; padding: 7px 9px; line-height: 1.4; }
+.kg-msg.kg-ai .kg-bubble ul, .kg-msg.kg-ai .kg-bubble ol { margin: 3px 0 3px 18px; padding: 0; }
+.kg-msg.kg-ai .kg-bubble div { min-height: 1.4em; }
 
 /* Aeltere Versionen: dezenter Textlink */
 .kg-msg.kg-ai .kg-diese-version {
