@@ -64,11 +64,14 @@
 .kg-chat-first { margin-top: 0; padding-top: 0; border-top: none; }
 .kg-quickchips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 9px; }
 
-/* Anrede-Chips (Du/Ihr/Sie): immer fest vorhanden, darum optisch leicht
-   abgesetzt von den anpassbaren Nachbessern-Buttons darunter. */
-.kg-anrede-chips { margin-top: 0; }
-.kg-anrede-chips .kg-chip { border-color: #D6E7F4; }
+/* Anrede-Chips (Du/Ihr/Sie): sitzen direkt in der Mikrofon-/Eingabe-Zeile
+   (davor), darum kompakt und ohne eigenen Zeilenabstand. Immer vorhanden -
+   schon bevor eine Vorlage gewaehlt ist (dann nur Praeferenz merken) und
+   weiterhin nach einem Entwurf (dann sofort umformulieren). */
+.kg-anrede-chips { display: flex; gap: 3px; flex-shrink: 0; margin-top: 0; }
+.kg-anrede-chips .kg-chip { padding: 4px 7px; border-color: #D6E7F4; }
 .kg-anrede-chips .kg-chip:hover { background: #D6E7F4; }
+.kg-anrede-chips .kg-chip.kg-chip-aktiv { background: #323E4E; border-color: #323E4E; color: #fff; }
 
 /* Chat-Verlauf: alle Versionen bleiben sichtbar, eigener Scroll-Bereich statt
    das ganze Panel wachsen zu lassen. Schrift bewusst klein, damit man die

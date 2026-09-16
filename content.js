@@ -23,6 +23,46 @@ const KG_ANON_KEY = 'sb_publishable_DoeD4uEnwemmnFu4AxE9uw_5lmQYc5P';
 const KG_ICON_BLITZ = '<path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5 19 19M19 5l-2.5 2.5M7.5 16.5 5 19"/>';
 const KG_ICON_MIC = '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><path d="M12 18v3"/>';
 
+// Anrede-Umschalter (Du/Ihr/Sie) - von Anfang an sichtbar (schon bevor eine
+// Vorlage gewaehlt ist), damit man die Praeferenz vorher setzen kann statt
+// hinterher nachbessern zu muessen. Wirkt aber genauso, wenn schon ein
+// Entwurf steht - dann sofort umformulieren statt nur merken.
+const KG_ANREDE_ANWEISUNG = {
+  Du: 'Die ganze Mail konsequent per "Du" formulieren (Anrede, Verbformen und Pronomen anpassen).',
+  Ihr: 'Die ganze Mail konsequent per "Ihr" formulieren - das ist hier die informelle Mehrzahl-Anrede (mehrere Personen, mit denen man per Du ist), nicht die formelle "Sie"-Form. Anrede, Verbformen und Pronomen anpassen.',
+  Sie: 'Die ganze Mail konsequent per "Sie" formulieren (Anrede, Verbformen und Pronomen anpassen).',
+};
+function kgAnredeChipsHtml() {
+  return ['Du', 'Ihr', 'Sie'].map(a => `<span class="kg-chip" data-anrede="${a}">${a}</span>`).join('');
+}
+function kgAktualisiereAnredeChips(zustand) {
+  zustand.panel.querySelectorAll('.kg-anrede-chips .kg-chip').forEach(chip => {
+    chip.classList.toggle('kg-chip-aktiv', chip.dataset.anrede === zustand.anrede);
+  });
+}
+function kgAnredeKlick(anrede, chatBereich, bodyEl, zustand) {
+  // Nochmaliges Klicken auf die aktive Anrede hebt sie wieder auf (zurueck zu
+  // neutral/Standard aus Vorlage bzw. Schreibstil).
+  zustand.anrede = zustand.anrede === anrede ? null : anrede;
+  kgAktualisiereAnredeChips(zustand);
+  if (zustand.aktuellerEntwurf) {
+    // Es steht schon ein Entwurf - sofort umformulieren statt nur merken.
+    const anweisung = zustand.anrede
+      ? KG_ANREDE_ANWEISUNG[zustand.anrede]
+      : 'Keine feste Du/Ihr/Sie-Anrede vorgeben - nach Vorlage bzw. Schreibstil formulieren.';
+    kgGeneriere(
+      { modus: 'nachbessern', aktuellerEntwurf: zustand.aktuellerEntwurf, anweisung, vorlageId: zustand.aktuelleVorlageId },
+      chatBereich, bodyEl, zustand,
+      zustand.anrede ? `Auf "${zustand.anrede}" umstellen` : 'Anrede zurücksetzen'
+    );
+  }
+}
+function kgVerdrahteAnredeChips(container, chatBereich, bodyEl, zustand) {
+  container.querySelectorAll('.kg-chip').forEach(chip => {
+    chip.addEventListener('click', () => kgAnredeKlick(chip.dataset.anrede, chatBereich, bodyEl, zustand));
+  });
+}
+
 function kgSvg(pfad, groesse) {
   groesse = groesse || 13;
   return `<svg width="${groesse}" height="${groesse}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${pfad}</svg>`;
@@ -136,7 +176,7 @@ function kgInitialisiere(bodyEl, container, toolbar) {
   // Gmails Handlern hochblubbern.
   ['mousedown', 'click'].forEach(ev => panel.addEventListener(ev, e => e.stopPropagation()));
 
-  const zustand = { offen: false, aktuellerEntwurf: null, aktuelleVorlageId: null, mailInhalt: null, panel, button };
+  const zustand = { offen: false, aktuellerEntwurf: null, aktuelleVorlageId: null, aktuellerBetreff: null, anrede: null, mailInhalt: null, panel, button };
 
   button.addEventListener('click', async () => {
     zustand.offen = !zustand.offen;
@@ -177,6 +217,7 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
   scroll.innerHTML = `
     <div class="kg-chips">${vorlagen.map(v => `<span class="kg-chip${istExpress(v) ? ' kg-chip-express' : ''}" data-id="${v.id}" title="${istExpress(v) ? 'Express - wird sofort eingefuegt' : ''}">${istExpress(v) ? kgSvg(KG_ICON_BLITZ, 11) : ''}${kgEscape(v.titel)}</span>`).join('')}</div>
     <div class="kg-row">
+      <div class="kg-anrede-chips">${kgAnredeChipsHtml()}</div>
       <button class="kg-micbtn" title="Diktieren">${kgSvg(KG_ICON_MIC)}</button>
       <textarea class="kg-textarea" rows="1" placeholder="Eigene Stichworte oder Anweisung … (Enter zum Erstellen)"></textarea>
     </div>
@@ -185,11 +226,14 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
   const chatBereich = scroll.querySelector('.kg-chat-bereich');
   const textarea = scroll.querySelector('.kg-textarea');
   kgSchuetzeFokus(textarea);
+  kgVerdrahteAnredeChips(scroll.querySelector('.kg-anrede-chips'), chatBereich, bodyEl, zustand);
+  kgAktualisiereAnredeChips(zustand);
 
-  scroll.querySelectorAll('.kg-chip').forEach(chip => {
+  scroll.querySelector('.kg-chips').querySelectorAll('.kg-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       const vorlage = vorlagen.find(v => v.id === chip.dataset.id);
-      if (vorlage && istExpress(vorlage)) {
+      const anredeUeberschreibung = zustand.anrede ? KG_ANREDE_ANWEISUNG[zustand.anrede] : null;
+      if (vorlage && istExpress(vorlage) && !anredeUeberschreibung) {
         // Express: kein KI-Aufruf noetig (kein Platzhalter zum Ausfuellen),
         // aber trotzdem als Entwurf im Chat zeigen statt blind einzufuegen -
         // so bleibt die Moeglichkeit zum Nachbessern vor dem Uebernehmen.
@@ -198,7 +242,10 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
         if (vorlage.betreff) zustand.aktuellerBetreff = vorlage.betreff;
         kgZeigeEntwurf(chatBereich, bodyEl, zustand, `Vorlage: ${vorlage.titel}`);
       } else {
-        kgGeneriere({ modus: 'verfassen', vorlageId: chip.dataset.id }, chatBereich, bodyEl, zustand, vorlage ? `Vorlage: ${vorlage.titel}` : undefined);
+        // Entweder keine reine Express-Vorlage, oder eine Anrede-Praeferenz
+        // ist gesetzt -> braucht in beiden Faellen die KI (fuer Platzhalter
+        // bzw. fuer die Umformulierung der Anrede).
+        kgGeneriere({ modus: 'verfassen', vorlageId: chip.dataset.id, stichworte: anredeUeberschreibung || undefined }, chatBereich, bodyEl, zustand, vorlage ? `Vorlage: ${vorlage.titel}` : undefined);
       }
     });
   });
@@ -210,7 +257,8 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
       if (zustand.aktuellerEntwurf) {
         kgGeneriere({ modus: 'nachbessern', aktuellerEntwurf: zustand.aktuellerEntwurf, anweisung: text, richtung: 'verfassen', vorlageId: zustand.aktuelleVorlageId }, chatBereich, bodyEl, zustand, text);
       } else {
-        kgGeneriere({ modus: 'verfassen', stichworte: text }, chatBereich, bodyEl, zustand, text);
+        const anredeUeberschreibung = zustand.anrede ? KG_ANREDE_ANWEISUNG[zustand.anrede] : '';
+        kgGeneriere({ modus: 'verfassen', stichworte: [text, anredeUeberschreibung].filter(Boolean).join('\n') }, chatBereich, bodyEl, zustand, text);
       }
       textarea.value = '';
     }
@@ -334,13 +382,9 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
 
     chatBereich.insertAdjacentHTML('beforeend', `
       <div class="kg-verlauf"></div>
-      <div class="kg-quickchips kg-anrede-chips">
-        <span class="kg-chip" data-anrede="Du">Du</span>
-        <span class="kg-chip" data-anrede="Ihr">Ihr</span>
-        <span class="kg-chip" data-anrede="Sie">Sie</span>
-      </div>
       <div class="kg-quickchips kg-quick-nachbessern"></div>
       <div class="kg-followuprow">
+        <div class="kg-anrede-chips">${kgAnredeChipsHtml()}</div>
         <button class="kg-micbtn" title="Diktieren">${kgSvg(KG_ICON_MIC)}</button>
         <input type="text" placeholder="Nachbessern oder eigene Anweisung…">
       </div>`);
@@ -348,16 +392,10 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
 
     // Anrede-Chips: immer fest vorhanden (unabhaengig von den anpassbaren
     // Nachbessern-Buttons), da Du/Ihr/Sie eine Grundfunktion ist, kein
-    // optionales Extra. Loest sofort eine Umformulierung des aktuellen
-    // Entwurfs aus - keine eigene KI-Anbindung noetig, laeuft einfach als
-    // Nachbessern-Anweisung.
-    chatBereich.querySelectorAll('.kg-anrede-chips .kg-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        const anrede = chip.dataset.anrede;
-        const anweisung = `Die ganze Mail konsequent per "${anrede}" umformulieren (Anrede, Verbformen und Pronomen anpassen)${anrede === 'Ihr' ? ' - "Ihr" ist hier die informelle Mehrzahl-Anrede (mehrere Personen, mit denen man per Du ist), nicht die formelle "Sie"-Form' : ''}.`;
-        kgGeneriere({ modus: 'nachbessern', aktuellerEntwurf: zustand.aktuellerEntwurf, anweisung, vorlageId: zustand.aktuelleVorlageId }, chatBereich, bodyEl, zustand, `Auf "${anrede}" umstellen`);
-      });
-    });
+    // optionales Extra. Sobald ein Entwurf steht (hier immer der Fall),
+    // loest ein Klick sofort eine Umformulierung aus.
+    kgVerdrahteAnredeChips(chatBereich.querySelector('.kg-followuprow .kg-anrede-chips'), chatBereich, bodyEl, zustand);
+    kgAktualisiereAnredeChips(zustand);
 
     kgLadeNachbesserButtons(chatBereich.querySelector('.kg-quick-nachbessern'), (anweisung) => {
       kgGeneriere({ modus: 'nachbessern', aktuellerEntwurf: zustand.aktuellerEntwurf, anweisung, vorlageId: zustand.aktuelleVorlageId }, chatBereich, bodyEl, zustand, anweisung);
