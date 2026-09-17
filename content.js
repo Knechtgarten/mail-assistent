@@ -22,6 +22,7 @@ const KG_ANON_KEY = 'sb_publishable_DoeD4uEnwemmnFu4AxE9uw_5lmQYc5P';
 
 const KG_ICON_BLITZ = '<path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5 19 19M19 5l-2.5 2.5M7.5 16.5 5 19"/>';
 const KG_ICON_MIC = '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><path d="M12 18v3"/>';
+const KG_ICON_CHEVRON = '<path d="M6 9l6 6 6-6"/>';
 
 // Anrede-Umschalter (Du/Ihr/Sie) - von Anfang an sichtbar (schon bevor eine
 // Vorlage gewaehlt ist), damit man die Praeferenz vorher setzen kann statt
@@ -214,8 +215,23 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
   const KG_PLATZHALTER_REGEX = /\[[^\]]+\]/;
   const istExpress = (v) => v.typ === 'einfach' && v.inhalt && !KG_PLATZHALTER_REGEX.test(v.inhalt);
 
+  // Dropdown-Gruppen buendeln mehrere Vorlagen unter einem Button (z.B.
+  // "Bestellungen"), damit die Chip-Leiste bei vielen aehnlichen Vorlagen
+  // nicht unuebersichtlich wird. Untermenues bleiben im Fluss statt als
+  // schwebendes Overlay (wie das Panel selbst) - vermeidet Positionierungs-
+  // Probleme innerhalb von Gmail.
+  const obersteEbene = vorlagen.filter(v => !v.parent_id);
+  const kinderVon = (elternId) => vorlagen.filter(v => v.parent_id === elternId);
+  const chipHtml = (v) => `<span class="kg-chip${istExpress(v) ? ' kg-chip-express' : ''}" data-id="${v.id}" title="${istExpress(v) ? 'Express - wird sofort eingefuegt' : ''}">${istExpress(v) ? kgSvg(KG_ICON_BLITZ, 11) : ''}${kgEscape(v.titel)}</span>`;
+
   scroll.innerHTML = `
-    <div class="kg-chips">${vorlagen.map(v => `<span class="kg-chip${istExpress(v) ? ' kg-chip-express' : ''}" data-id="${v.id}" title="${istExpress(v) ? 'Express - wird sofort eingefuegt' : ''}">${istExpress(v) ? kgSvg(KG_ICON_BLITZ, 11) : ''}${kgEscape(v.titel)}</span>`).join('')}</div>
+    <div class="kg-chips">${obersteEbene.map(v => v.typ === 'dropdown'
+      ? `<span class="kg-chip kg-chip-dropdown" data-dropdown-id="${v.id}">${kgEscape(v.titel)}${kgSvg(KG_ICON_CHEVRON, 10)}</span>`
+      : chipHtml(v)
+    ).join('')}</div>
+    ${obersteEbene.filter(v => v.typ === 'dropdown').map(gruppe => `
+      <div class="kg-chips kg-dropdown-submenu" data-dropdown-id="${gruppe.id}">${kinderVon(gruppe.id).map(chipHtml).join('') || '<span class="kg-dropdown-leer">Keine Vorlagen in dieser Gruppe.</span>'}</div>
+    `).join('')}
     <div class="kg-row">
       <div class="kg-anrede-chips">${kgAnredeChipsHtml()}</div>
       <button class="kg-micbtn" title="Diktieren">${kgSvg(KG_ICON_MIC)}</button>
@@ -229,7 +245,17 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
   kgVerdrahteAnredeChips(scroll.querySelector('.kg-anrede-chips'), chatBereich, bodyEl, zustand);
   kgAktualisiereAnredeChips(zustand);
 
-  scroll.querySelector('.kg-chips').querySelectorAll('.kg-chip').forEach(chip => {
+  scroll.querySelectorAll('.kg-chip-dropdown').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const submenu = scroll.querySelector(`.kg-dropdown-submenu[data-dropdown-id="${btn.dataset.dropdownId}"]`);
+      const warOffen = submenu.classList.contains('kg-show');
+      scroll.querySelectorAll('.kg-dropdown-submenu').forEach(s => s.classList.remove('kg-show'));
+      scroll.querySelectorAll('.kg-chip-dropdown').forEach(b => b.classList.remove('kg-chip-aktiv'));
+      if (!warOffen) { submenu.classList.add('kg-show'); btn.classList.add('kg-chip-aktiv'); }
+    });
+  });
+
+  scroll.querySelectorAll('.kg-chips .kg-chip:not(.kg-chip-dropdown)').forEach(chip => {
     chip.addEventListener('click', () => {
       const vorlage = vorlagen.find(v => v.id === chip.dataset.id);
       const anredeUeberschreibung = zustand.anrede ? KG_ANREDE_ANWEISUNG[zustand.anrede] : null;
