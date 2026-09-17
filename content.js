@@ -520,7 +520,11 @@ function kgUebernehmeInMail(bodyEl, text) {
   const html = kgMarkdownZuHtml(text) + '<br><br>';
   try {
     range.setStart(bodyEl, 0);
-    if (zitat) range.setEndBefore(zitat); else range.selectNodeContents(bodyEl);
+    // Ohne Zitat NICHT den ganzen Inhalt auswaehlen (das wuerde die am Ende
+    // stehende Gmail-Signatur mit ueberschreiben) - stattdessen den Bereich an
+    // Position 0 kollabieren, dann fuegt insertHTML nur ein, ohne etwas zu
+    // loeschen, und die Signatur bleibt unten stehen.
+    if (zitat) range.setEndBefore(zitat); else range.setEnd(bodyEl, 0);
     sel.removeAllRanges();
     sel.addRange(range);
     document.execCommand('insertHTML', false, html);
