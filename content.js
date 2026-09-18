@@ -530,11 +530,20 @@ function kgZusatzfensterHtml(zf) {
   const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   const positionen = (zf.mailassistent_zusatzfenster_position || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   const spaltenHtml = spalten.map(s => `<th>${kgEscape(s.titel)}</th>`).join('');
+  // Zusatzspalten werden immer per Dropdown mit den in der Verwaltung
+  // hinterlegten Optionen abgefuellt, nie per Freitext.
+  const spalteFeldHtml = (s) => {
+    const optionen = (s.mailassistent_zusatzfenster_spalte_option || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
+    return `<td><select class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}">
+      <option value=""></option>
+      ${optionen.map(o => `<option value="${kgEscape(o.wert)}">${kgEscape(o.wert)}</option>`).join('')}
+    </select></td>`;
+  };
   const zeileHtml = (titel, istEigene) => `
     <tr class="kg-zf-zeile" data-position="${istEigene ? '' : kgEscape(titel)}">
       <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
       <td>${istEigene ? '<input type="text" class="kg-zf-eigenname" placeholder="Eigene Position">' : kgEscape(titel)}</td>
-      ${spalten.map(s => `<td><input type="text" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}"></td>`).join('')}
+      ${spalten.map(spalteFeldHtml).join('')}
     </tr>`;
   const zeilenHtml = positionen.map(p => zeileHtml(p.titel, false)).join('') + (zf.erlaubt_eigene_eingabe ? zeileHtml('', true) : '');
   return `
