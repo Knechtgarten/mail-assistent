@@ -81,6 +81,23 @@ async function kgKalTerminHinzufuegen(anzeige) {
   await chrome.storage.local.set({ [KG_KALENDER_STORAGE_KEY]: liste });
 }
 
+// Wurde diese Seite ueber unser kompaktes Popup-Fenster geoeffnet (siehe
+// kgKalenderOeffnen in content.js, erkennbar am URL-Parameter), die linke
+// Seitenleiste ("Meine Kalender" usw.) automatisch einklappen - macht das
+// kleine Fenster deutlich uebersichtlicher. Das ist Teil von Kalenders
+// eigener Oberflaeche (nicht der Chrome-Oberflaeche), laesst sich also per
+// Klick auf den vorhandenen Umschalt-Button automatisieren. Kalender laedt
+// asynchron nach, darum mehrfach versuchen statt einmalig zu fest.
+if (location.search.includes('kgPopup=1')) {
+  let kgKalEinklappVersuche = 0;
+  const kgKalEinklappIntervall = setInterval(() => {
+    kgKalEinklappVersuche++;
+    const btn = document.querySelector('button[aria-label="Hauptmenü"], button[aria-label="Menü"]');
+    if (btn) { btn.click(); clearInterval(kgKalEinklappIntervall); }
+    else if (kgKalEinklappVersuche > 25) clearInterval(kgKalEinklappIntervall);
+  }, 300);
+}
+
 console.log('[Mail-Assistent] calendar.js geladen, Beobachter aktiv.');
 const kgKalBeobachter = new MutationObserver(() => {
   const gefunden = kgKalFindeDialogMitSpeichern();

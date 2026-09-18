@@ -629,7 +629,13 @@ function kgKalenderChipHtml(eintrag) {
 // Kleines eigenstaendiges Fenster statt neuem Tab - laesst sich einfach
 // schliessen/wegklicken, ohne dass man den Gmail-Tab erst wiederfinden muss.
 function kgKalenderOeffnen() {
-  window.open('https://calendar.google.com', 'kg-kalender', 'width=480,height=760,noopener');
+  // Direkt beim Gmail-Fenster platzieren (gleicher Bildschirm bei mehreren
+  // Monitoren/geteiltem Bildschirm) - ohne left/top setzt der Browser sonst
+  // eine Standardposition, die z.B. auf dem falschen Monitor landen kann.
+  const breite = 420, hoehe = 760;
+  const left = Math.round(window.screenX + Math.max(0, (window.outerWidth - breite) / 2));
+  const top = Math.round(window.screenY + Math.max(0, (window.outerHeight - hoehe) / 2));
+  window.open('https://calendar.google.com/calendar/u/0/r?kgPopup=1', 'kg-kalender', `width=${breite},height=${hoehe},left=${left},top=${top},noopener`);
 }
 async function kgZfKalenderListeRendern(block) {
   // Falls die "storage"-Berechtigung (noch) nicht wirksam ist (z.B. nach
