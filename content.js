@@ -530,7 +530,7 @@ function kgZusatzfensterVon(vorlage) {
 // wie in der Verwaltung konfiguriert.
 function kgZfSpalteFeldHtml(s) {
   if (s.typ === 'zahl') {
-    return `<td><input type="number" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}"></td>`;
+    return `<td><input type="number" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}">${s.einheit ? ` <span class="kg-zf-einheit">${kgEscape(s.einheit)}</span>` : ''}</td>`;
   }
   const optionen = (s.mailassistent_zusatzfenster_spalte_option || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   return `<td><select class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}">
