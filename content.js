@@ -575,9 +575,12 @@ function kgZfTabelleHtml(zf, index) {
   const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   const positionen = (zf.mailassistent_zusatzfenster_position || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   const spaltenHtml = spalten.map(s => `<th>${kgEscape(s.titel)}</th>`).join('');
-  const hatPositionen = positionen.length > 0;
+  // Zwei getrennte Zusatzfenster-Typen (nicht mehr eine Tabelle mit
+  // optionalem Positionen-Zusatz): 'tabelle_fix' hat feste, in der
+  // Verwaltung erfasste Zeilen, 'tabelle' waechst in Gmail frei.
+  const istFix = zf.typ === 'tabelle_fix';
   let kopfHtml, zeilenHtml;
-  if (hatPositionen) {
+  if (istFix) {
     const zeileHtml = (titel) => `
       <tr class="kg-zf-zeile" data-position="${kgEscape(titel)}">
         <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
@@ -657,12 +660,12 @@ function kgZeigeZusatzfenster(zfListe, vorlage, chatBereich, bodyEl, zustand) {
   zfListe.forEach((zf, i) => {
     const tbody = container.querySelector(`table[data-zf-index="${i}"] tbody`);
     const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
-    const hatPositionen = (zf.mailassistent_zusatzfenster_position || []).length > 0;
+    const istFix = zf.typ === 'tabelle_fix';
 
-    // Ohne Positionen wachsen die generischen Dropdown-Zeilen automatisch
-    // nach, mit Positionen die "Eigene Position"-Zeilen - jeweils sobald die
-    // letzte Zeile befuellt wird.
-    if (!hatPositionen) {
+    // Typ "tabelle": generische Dropdown-Zeilen wachsen automatisch nach.
+    // Typ "tabelle_fix": die "Eigene Position"-Zeilen wachsen nach (falls
+    // erlaubt) - jeweils sobald die letzte Zeile befuellt wird.
+    if (!istFix) {
       tbody.addEventListener('input', (e) => {
         const zeile = e.target.closest('.kg-zf-generische-zeile');
         if (!zeile) return;
