@@ -65,8 +65,8 @@ function kgKalVerdrahteDialog({ dialog, speichernBtn, weitereBtn }) {
       setTimeout(() => { button.textContent = 'In Mail übernehmen'; }, 2000);
       return;
     }
-    await kgKalTerminHinzufuegen(termin.anzeige);
-    button.textContent = '✓ Übernommen';
+    const ok = await kgKalTerminHinzufuegen(termin.anzeige);
+    button.textContent = ok ? '✓ Übernommen' : 'Bitte Tab neu laden';
     // Termin ganz normal speichern - wie ein normaler Google-Klick.
     speichernBtn.click();
   });
@@ -75,10 +75,17 @@ function kgKalVerdrahteDialog({ dialog, speichernBtn, weitereBtn }) {
 }
 
 async function kgKalTerminHinzufuegen(anzeige) {
-  const daten = await chrome.storage.local.get(KG_KALENDER_STORAGE_KEY);
-  const liste = daten[KG_KALENDER_STORAGE_KEY] || [];
-  liste.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), anzeige });
-  await chrome.storage.local.set({ [KG_KALENDER_STORAGE_KEY]: liste });
+  try {
+    const daten = await chrome.storage.local.get(KG_KALENDER_STORAGE_KEY);
+    const liste = daten[KG_KALENDER_STORAGE_KEY] || [];
+    liste.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), anzeige });
+    await chrome.storage.local.set({ [KG_KALENDER_STORAGE_KEY]: liste });
+    return true;
+  } catch (e) {
+    // "Extension context invalidated" - Erweiterung wurde neu geladen,
+    // waehrend dieser Tab noch mit der alten Version offen war.
+    return false;
+  }
 }
 
 // Wurde diese Seite ueber unser kompaktes Popup-Fenster geoeffnet (siehe

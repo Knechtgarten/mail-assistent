@@ -645,16 +645,26 @@ async function kgZfKalenderListeRendern(block) {
     block.querySelector('.kg-zf-kalender-hinweis').textContent = 'Erweiterung bitte komplett neu laden (chrome://extensions → entfernen → neu laden), dann funktioniert die Kalender-Übernahme.';
     return;
   }
-  const daten = await chrome.storage.local.get(KG_KALENDER_STORAGE_KEY);
+  let daten;
+  try {
+    daten = await chrome.storage.local.get(KG_KALENDER_STORAGE_KEY);
+  } catch (e) {
+    // "Extension context invalidated" - passiert, wenn die Erweiterung neu
+    // geladen wurde, waehrend dieser Gmail-Tab noch mit der alten Version
+    // offen war. Harmlos, verschwindet nach dem Neuladen des Tabs.
+    return;
+  }
   const liste = daten[KG_KALENDER_STORAGE_KEY] || [];
   block.querySelector('.kg-zf-kalender-liste').innerHTML = liste.map(kgKalenderChipHtml).join('');
   block.querySelector('.kg-zf-kalender-hinweis').style.display = liste.length ? 'none' : '';
   block.querySelectorAll('.kg-kal-chip-del').forEach(btn => {
     btn.addEventListener('click', async () => {
-      const id = btn.parentElement.dataset.id;
-      const d = await chrome.storage.local.get(KG_KALENDER_STORAGE_KEY);
-      const neu = (d[KG_KALENDER_STORAGE_KEY] || []).filter(e => e.id !== id);
-      await chrome.storage.local.set({ [KG_KALENDER_STORAGE_KEY]: neu });
+      try {
+        const id = btn.parentElement.dataset.id;
+        const d = await chrome.storage.local.get(KG_KALENDER_STORAGE_KEY);
+        const neu = (d[KG_KALENDER_STORAGE_KEY] || []).filter(e => e.id !== id);
+        await chrome.storage.local.set({ [KG_KALENDER_STORAGE_KEY]: neu });
+      } catch (e) { /* Extension context invalidated - harmlos, siehe oben */ }
     });
   });
 }
@@ -764,15 +774,17 @@ function kgZeigeZusatzfenster(zfListe, vorlage, chatBereich, bodyEl, zustand) {
       const zf = zfListe[i];
       if (zf.typ === 'kalender') {
         if (!chrome.storage?.local) continue;
-        const daten = await chrome.storage.local.get(KG_KALENDER_STORAGE_KEY);
-        const liste = daten[KG_KALENDER_STORAGE_KEY] || [];
-        if (!liste.length) continue;
-        irgendwasAusgefuellt = true;
-        // Untereinander als Liste statt in einer Zeile mit "oder" - Kunde
-        // soll die Optionen klar getrennt sehen.
-        const terminText = liste.length === 1 ? liste[0].anzeige : liste.map(e => `- ${e.anzeige}`).join('\n');
-        text = text.includes(zf.platzhalter) ? text.replace(zf.platzhalter, terminText) : `${text}\n\n${terminText}`;
-        await chrome.storage.local.set({ [KG_KALENDER_STORAGE_KEY]: [] });
+        try {
+          const daten = await chrome.storage.local.get(KG_KALENDER_STORAGE_KEY);
+          const liste = daten[KG_KALENDER_STORAGE_KEY] || [];
+          if (!liste.length) continue;
+          irgendwasAusgefuellt = true;
+          // Untereinander als Liste statt in einer Zeile mit "oder" - Kunde
+          // soll die Optionen klar getrennt sehen.
+          const terminText = liste.length === 1 ? liste[0].anzeige : liste.map(e => `- ${e.anzeige}`).join('\n');
+          text = text.includes(zf.platzhalter) ? text.replace(zf.platzhalter, terminText) : `${text}\n\n${terminText}`;
+          await chrome.storage.local.set({ [KG_KALENDER_STORAGE_KEY]: [] });
+        } catch (e) { /* Extension context invalidated - harmlos, siehe oben */ }
         continue;
       }
       const tabelle = container.querySelector(`table[data-zf-index="${i}"]`);
