@@ -226,7 +226,7 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
 
   scroll.innerHTML = `
     <div class="kg-chips">${obersteEbene.map(v => v.typ === 'dropdown'
-      ? `<span class="kg-chip kg-chip-dropdown" data-dropdown-id="${v.id}">${kgEscape(v.titel)}${kgSvg(KG_ICON_CHEVRON, 10)}</span>`
+      ? `<span class="kg-chip kg-chip-dropdown" data-dropdown-id="${v.id}">${kgEscape(v.titel)}${kgSvg(KG_ICON_CHEVRON, 13)}</span>`
       : chipHtml(v)
     ).join('')}</div>
     ${obersteEbene.filter(v => v.typ === 'dropdown').map(gruppe => `

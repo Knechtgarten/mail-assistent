@@ -49,10 +49,11 @@
 /* Dropdown-Gruppen: buendeln mehrere Vorlagen unter einem Button, das
    Untermenue bleibt im Fluss (kein Overlay) und wird nur bei Bedarf
    eingeblendet - direkt unter der Haupt-Chipleiste. */
-.kg-chip-dropdown { display: inline-flex; align-items: center; gap: 3px; }
-.kg-chip-dropdown svg { margin-right: 0; transition: transform .15s; }
+.kg-chip-dropdown { display: inline-flex; align-items: center; gap: 4px; border-color: #D6E7F4; }
+.kg-chip-dropdown svg { margin-right: 0; stroke-width: 2.5; opacity: .7; transition: transform .15s; }
+.kg-chip-dropdown:hover svg { opacity: 1; }
 .kg-chip-dropdown.kg-chip-aktiv { background: #323E4E; border-color: #323E4E; color: #fff; }
-.kg-chip-dropdown.kg-chip-aktiv svg { stroke: #fff; transform: rotate(180deg); }
+.kg-chip-dropdown.kg-chip-aktiv svg { stroke: #fff; opacity: 1; transform: rotate(180deg); }
 .kg-dropdown-submenu { display: none; margin-top: 5px; padding: 7px; background: #fff; border: 1px solid #E1E5E9; border-radius: 10px; }
 .kg-dropdown-submenu.kg-show { display: flex; }
 .kg-dropdown-leer { font-size: 11px; color: #8B9097; font-style: italic; padding: 2px 0; }
