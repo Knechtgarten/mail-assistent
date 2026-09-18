@@ -554,23 +554,45 @@ function kgZfZeileAusHtml(html) {
   wrapper.innerHTML = html;
   return wrapper.firstElementChild;
 }
+// Ohne definierte Positionen (z.B. wenn eine Dropdown-Spalte wie "Artikel"
+// die Zeile schon eindeutig genug beschreibt) gibt es keine eigene
+// Positions-Spalte - stattdessen einfach eine wachsende Liste ganz normaler
+// Dropdown/Zahl-Zeilen, die sich beim Ausfuellen der letzten automatisch
+// vermehrt.
+function kgZfGenerischeZeileHtml(spalten) {
+  return `
+    <tr class="kg-zf-zeile kg-zf-generische-zeile">
+      <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
+      ${spalten.map(s => kgZfSpalteFeldHtml(s)).join('')}
+    </tr>`;
+}
 function kgZusatzfensterHtml(zf) {
   const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   const positionen = (zf.mailassistent_zusatzfenster_position || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   const spaltenHtml = spalten.map(s => `<th>${kgEscape(s.titel)}</th>`).join('');
-  const zeileHtml = (titel) => `
-    <tr class="kg-zf-zeile" data-position="${kgEscape(titel)}">
-      <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
-      <td>${kgEscape(titel)}</td>
-      ${spalten.map(s => kgZfSpalteFeldHtml(s)).join('')}
-    </tr>`;
-  const zeilenHtml = positionen.map(p => zeileHtml(p.titel)).join('')
-    + (zf.erlaubt_eigene_eingabe ? kgZfEigeneZeileHtml(spalten) : '');
+  const hatPositionen = positionen.length > 0;
+  let kopfHtml, zeilenHtml;
+  if (hatPositionen) {
+    const zeileHtml = (titel) => `
+      <tr class="kg-zf-zeile" data-position="${kgEscape(titel)}">
+        <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
+        <td>${kgEscape(titel)}</td>
+        ${spalten.map(s => kgZfSpalteFeldHtml(s)).join('')}
+      </tr>`;
+    kopfHtml = `<th>Anzahl</th><th>Position</th>${spaltenHtml}`;
+    zeilenHtml = positionen.map(p => zeileHtml(p.titel)).join('')
+      + (zf.erlaubt_eigene_eingabe ? kgZfEigeneZeileHtml(spalten) : '');
+  } else {
+    // Keine Positionen erfasst: immer mindestens eine ausfuellbare Zeile
+    // zeigen, sonst waere die Tabelle leer und unbenutzbar.
+    kopfHtml = `<th>Anzahl</th>${spaltenHtml}`;
+    zeilenHtml = kgZfGenerischeZeileHtml(spalten);
+  }
   return `
     <div class="kg-zusatzfenster">
       <div class="kg-zf-titel">${kgEscape(zf.titel)}</div>
       <table class="kg-zf-tabelle">
-        <thead><tr><th>Anzahl</th><th>Position</th>${spaltenHtml}</tr></thead>
+        <thead><tr>${kopfHtml}</tr></thead>
         <tbody>${zeilenHtml}</tbody>
       </table>
       <div class="kg-zf-btns">
@@ -583,7 +605,22 @@ function kgZeigeZusatzfenster(zf, vorlage, chatBereich, bodyEl, zustand) {
   chatBereich.innerHTML = kgZusatzfensterHtml(zf);
   const container = chatBereich.querySelector('.kg-zusatzfenster');
   const spaltenFuerEigene = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
+  const hatPositionen = (zf.mailassistent_zusatzfenster_position || []).length > 0;
   const tbody = container.querySelector('.kg-zf-tabelle tbody');
+
+  // Ohne Positionen wachsen die generischen Dropdown-Zeilen genauso
+  // automatisch nach wie die "Eigene Position"-Zeilen bei vorhandenen
+  // Positionen.
+  if (!hatPositionen) {
+    tbody.addEventListener('input', (e) => {
+      const zeile = e.target.closest('.kg-zf-generische-zeile');
+      if (!zeile) return;
+      const zeilen = tbody.querySelectorAll('.kg-zf-generische-zeile');
+      if (zeile !== zeilen[zeilen.length - 1]) return;
+      const hatInhalt = Array.from(zeile.querySelectorAll('input, select')).some(f => f.value.trim());
+      if (hatInhalt) tbody.appendChild(kgZfZeileAusHtml(kgZfGenerischeZeileHtml(spaltenFuerEigene)));
+    });
+  }
 
   // Sobald in der letzten "Eigene Position"-Zeile irgendwo etwas eingetragen
   // wird, automatisch eine weitere leere Zeile darunter anhaengen - so lassen
@@ -605,6 +642,24 @@ function kgZeigeZusatzfenster(zf, vorlage, chatBereich, bodyEl, zustand) {
     const eintraege = [];
     container.querySelectorAll('.kg-zf-zeile').forEach(zeile => {
       const anzahl = parseInt(zeile.querySelector('.kg-zf-anzahl').value, 10) || 0;
+      // Generische Zeile (keine Positionen definiert): keine eigene
+      // Positions-Bezeichnung vorhanden - die erste Spalte (z.B. "Artikel")
+      // uebernimmt diese Rolle, der Rest wird als Detail angehaengt.
+      if (zeile.classList.contains('kg-zf-generische-zeile')) {
+        if (!spalten.length) return;
+        const werte = spalten.map(s => {
+          const feld = zeile.querySelector(`.kg-zf-spalte[data-spalte="${CSS.escape(s.titel)}"]`);
+          return feld ? feld.value.trim() : '';
+        });
+        const positionsname = werte[0];
+        if (!positionsname || anzahl <= 0) return;
+        const details = spalten.slice(1)
+          .map((s, i) => werte[i + 1] ? `${s.titel}: ${werte[i + 1]}` : null)
+          .filter(Boolean)
+          .join(', ');
+        eintraege.push(`- ${anzahl}x ${positionsname}${details ? ' (' + details + ')' : ''}`);
+        return;
+      }
       const eigennameEl = zeile.querySelector('.kg-zf-eigenname');
       const positionsname = eigennameEl ? eigennameEl.value.trim() : zeile.dataset.position;
       if (!positionsname || anzahl <= 0) return;
