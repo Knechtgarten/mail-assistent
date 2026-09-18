@@ -88,6 +88,7 @@
    schon bevor eine Vorlage gewaehlt ist (dann nur Praeferenz merken) und
    weiterhin nach einem Entwurf (dann sofort umformulieren). */
 .kg-anrede-chips { display: flex; align-items: center; gap: 3px; flex-shrink: 0; margin-top: 0; margin-right: 8px; }
+.kg-anrede-chips-rueckfrage { margin-bottom: 9px; margin-right: 0; }
 .kg-anrede-chips .kg-chip[data-anrede="DuMehrere"] { margin-right: 8px; }
 .kg-anrede-chips .kg-chip {
   padding: 0 6px; height: 22px; line-height: 20px; font-size: 10px; border-color: #D6E7F4;
