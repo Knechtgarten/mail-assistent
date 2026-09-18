@@ -150,7 +150,7 @@
 .kg-zf-tabelle tr:last-child td { border-bottom: none; }
 .kg-zf-tabelle input[type="number"] { width: 42px; border: 1px solid #E1E5E9; border-radius: 5px; padding: 3px 5px; font-size: 11px; }
 .kg-zf-tabelle input[type="text"] { width: 100%; min-width: 60px; border: 1px solid #E1E5E9; border-radius: 5px; padding: 3px 5px; font-size: 11px; box-sizing: border-box; }
-.kg-zf-tabelle select { width: 100%; min-width: 70px; border: 1px solid #E1E5E9; border-radius: 5px; padding: 3px 4px; font-size: 11px; color: #323E4E; box-sizing: border-box; background: #fff; }
+.kg-zf-tabelle select { width: 100%; min-width: 70px; max-width: 160px; border: 1px solid #E1E5E9; border-radius: 5px; padding: 3px 4px; font-size: 11px; color: #323E4E; box-sizing: border-box; background: #fff; }
 .kg-zf-einheit { font-size: 10px; color: #8B9097; }
 .kg-zf-hinweis { color: #B4655F; font-size: 11px; margin-top: 8px; }
 .kg-zf-btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
