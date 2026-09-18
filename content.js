@@ -244,7 +244,7 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
   // Probleme innerhalb von Gmail.
   const obersteEbene = vorlagen.filter(v => !v.parent_id);
   const kinderVon = (elternId) => vorlagen.filter(v => v.parent_id === elternId);
-  const chipHtml = (v) => `<span class="kg-chip${istExpress(v) ? ' kg-chip-express' : ''}" data-id="${v.id}" title="${istExpress(v) ? 'Express - wird sofort eingefuegt' : ''}">${istExpress(v) ? kgSvg(KG_ICON_BLITZ, 11) : ''}${kgEscape(v.titel)}</span>`;
+  const chipHtml = (v) => `<span class="kg-chip${istExpress(v) ? ' kg-chip-express' : ''}" data-id="${v.id}" title="${istExpress(v) ? 'Express - wird sofort eingefuegt' : ''}">${kgEscape(v.titel)}</span>`;
 
   scroll.innerHTML = `
     <div class="kg-chips">${obersteEbene.map(v => v.typ === 'dropdown'
