@@ -54,7 +54,10 @@ const KG_ANREDE_KURZ = { Du: 'Du', DuMehrere: 'Du', Sie: 'Sie', SieMehrere: 'Sie
 // unterscheidbar.
 const KG_ANREDE_LABEL = { Du: 'Du', DuMehrere: 'Du (mehrere Personen)', Sie: 'Sie', SieMehrere: 'Sie (mehrere Personen)' };
 function kgAnredeChipsHtml() {
-  return ['Du', 'DuMehrere', 'Sie', 'SieMehrere'].map(a => `<span class="kg-chip kg-chip-anrede" data-anrede="${a}" title="${kgEscape(KG_ANREDE_ERKLAERUNG[a])}">${kgSvg(KG_ANREDE_ICON[a], 13)}${KG_ANREDE_KURZ[a]}</span>`).join('');
+  // Icon nur bei der Mehrzahl-Variante - bei "Du"/"Sie" alleine (Einzahl)
+  // reicht der Text, das Icon braucht es erst zur Unterscheidung von der
+  // Mehrzahl-Variante.
+  return ['Du', 'DuMehrere', 'Sie', 'SieMehrere'].map(a => `<span class="kg-chip kg-chip-anrede" data-anrede="${a}" title="${kgEscape(KG_ANREDE_ERKLAERUNG[a])}">${a.endsWith('Mehrere') ? kgSvg(KG_ANREDE_ICON[a], 13) : ''}${KG_ANREDE_KURZ[a]}</span>`).join('');
 }
 function kgAktualisiereAnredeChips(zustand) {
   zustand.panel.querySelectorAll('.kg-anrede-chips .kg-chip').forEach(chip => {
