@@ -132,6 +132,20 @@
 }
 .kg-answer:hover { background: #323E4E; color: #fff; }
 
+/* Zusatzfenster (Typ Tabelle): strukturierte Eingabemaske vor dem Erstellen
+   einer Vorlage mit Positionsliste (z.B. Bestellungen). */
+.kg-zusatzfenster { border: 1px solid #E1E5E9; border-radius: 10px; padding: 10px 12px; background: #fff; }
+.kg-zf-titel { font-size: 12px; font-weight: 700; color: #323E4E; margin-bottom: 8px; }
+.kg-zf-tabelle { width: 100%; border-collapse: collapse; font-size: 11px; }
+.kg-zf-tabelle th { text-align: left; color: #8B9097; font-weight: 600; padding: 0 6px 6px 0; white-space: nowrap; }
+.kg-zf-tabelle td { padding: 2px 6px 2px 0; }
+.kg-zf-tabelle input[type="number"] { width: 42px; border: 1px solid #E1E5E9; border-radius: 5px; padding: 3px 5px; font-size: 11px; }
+.kg-zf-tabelle input[type="text"] { width: 100%; min-width: 60px; border: 1px solid #E1E5E9; border-radius: 5px; padding: 3px 5px; font-size: 11px; box-sizing: border-box; }
+.kg-zf-hinweis { color: #B4655F; font-size: 11px; margin-top: 8px; }
+.kg-zf-btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
+.kg-zf-btns button { border-radius: 12px; padding: 6px 13px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid #E1E5E9; background: #fff; color: #323E4E; }
+.kg-zf-uebernehmen { background: #323E4E !important; color: #fff !important; border-color: #323E4E !important; }
+
 .kg-followuprow { display: flex; align-items: center; gap: 5px; margin-top: 9px; }
 .kg-followuprow input {
   flex: 1; border: 1px solid #E1E5E9; border-radius: 14px; padding: 6px 12px;

@@ -284,6 +284,14 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
   scroll.querySelectorAll('.kg-chips .kg-chip:not(.kg-chip-dropdown)').forEach(chip => {
     chip.addEventListener('click', () => {
       const vorlage = vorlagen.find(v => v.id === chip.dataset.id);
+      const zusatzfenster = vorlage ? kgZusatzfensterVon(vorlage) : null;
+      if (vorlage && zusatzfenster) {
+        // Strukturierte Eingabemaske (z.B. Bestell-Tabelle) zuerst zeigen -
+        // die daraus gebaute Liste ersetzt den Platzhalter direkt, ganz ohne
+        // KI-Aufruf (die Daten sind schon vollstaendig strukturiert).
+        kgZeigeZusatzfenster(zusatzfenster, vorlage, chatBereich, bodyEl, zustand);
+        return;
+      }
       const anredeUeberschreibung = zustand.anrede ? KG_ANREDE_ANWEISUNG[zustand.anrede] : null;
       if (vorlage && istExpress(vorlage) && !anredeUeberschreibung) {
         // Express: kein KI-Aufruf noetig (kein Platzhalter zum Ausfuellen),
@@ -504,6 +512,84 @@ function kgZeigeRueckfrage(chatBereich, data, bodyEl, zustand) {
       zustand.aktuelleVorlageId = data.vorlageId;
       kgGeneriere({ modus: 'rueckfrage-antwort', vorlageId: data.vorlageId, antwortLabel: btn.dataset.label }, chatBereich, bodyEl, zustand, btn.dataset.label);
     });
+  });
+}
+
+// ----------------------------------------------------------------------------
+// Zusatzfenster (Typ Tabelle): strukturierte Eingabemaske vor dem Erstellen
+// einer Vorlage mit Positionsliste (z.B. Bestellungen). Die eingebettete
+// 1:1-Relation liefert die Edge Function je nach PostgREST-Erkennung als
+// Objekt oder als Array mit einem Eintrag - hier vereinheitlicht.
+// ----------------------------------------------------------------------------
+function kgZusatzfensterVon(vorlage) {
+  const zf = vorlage.mailassistent_zusatzfenster;
+  if (!zf) return null;
+  return Array.isArray(zf) ? (zf[0] || null) : zf;
+}
+function kgZusatzfensterHtml(zf) {
+  const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
+  const positionen = (zf.mailassistent_zusatzfenster_position || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
+  const spaltenHtml = spalten.map(s => `<th>${kgEscape(s.titel)}</th>`).join('');
+  const zeileHtml = (titel, istEigene) => `
+    <tr class="kg-zf-zeile" data-position="${istEigene ? '' : kgEscape(titel)}">
+      <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
+      <td>${istEigene ? '<input type="text" class="kg-zf-eigenname" placeholder="Eigene Position">' : kgEscape(titel)}</td>
+      ${spalten.map(s => `<td><input type="text" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}"></td>`).join('')}
+    </tr>`;
+  const zeilenHtml = positionen.map(p => zeileHtml(p.titel, false)).join('') + (zf.erlaubt_eigene_eingabe ? zeileHtml('', true) : '');
+  return `
+    <div class="kg-zusatzfenster">
+      <div class="kg-zf-titel">${kgEscape(zf.titel)}</div>
+      <table class="kg-zf-tabelle">
+        <thead><tr><th>Anzahl</th><th></th>${spaltenHtml}</tr></thead>
+        <tbody>${zeilenHtml}</tbody>
+      </table>
+      <div class="kg-zf-btns">
+        <button class="kg-zf-abbrechen" type="button">Abbrechen</button>
+        <button class="kg-zf-uebernehmen" type="button">Übernehmen &amp; Entwurf erstellen</button>
+      </div>
+    </div>`;
+}
+function kgZeigeZusatzfenster(zf, vorlage, chatBereich, bodyEl, zustand) {
+  chatBereich.innerHTML = kgZusatzfensterHtml(zf);
+  const container = chatBereich.querySelector('.kg-zusatzfenster');
+  container.querySelector('.kg-zf-abbrechen').addEventListener('click', () => { chatBereich.innerHTML = ''; });
+  container.querySelector('.kg-zf-uebernehmen').addEventListener('click', () => {
+    const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
+    const eintraege = [];
+    container.querySelectorAll('.kg-zf-zeile').forEach(zeile => {
+      const anzahl = parseInt(zeile.querySelector('.kg-zf-anzahl').value, 10) || 0;
+      const eigennameEl = zeile.querySelector('.kg-zf-eigenname');
+      const positionsname = eigennameEl ? eigennameEl.value.trim() : zeile.dataset.position;
+      if (!positionsname || anzahl <= 0) return;
+      const details = spalten
+        .map(s => {
+          const feld = zeile.querySelector(`.kg-zf-spalte[data-spalte="${CSS.escape(s.titel)}"]`);
+          const wert = feld ? feld.value.trim() : '';
+          return wert ? `${s.titel}: ${wert}` : null;
+        })
+        .filter(Boolean)
+        .join(', ');
+      eintraege.push(`- ${anzahl}x ${positionsname}${details ? ' (' + details + ')' : ''}`);
+    });
+    if (!eintraege.length) {
+      if (!container.querySelector('.kg-zf-hinweis')) {
+        const hinweis = document.createElement('div');
+        hinweis.className = 'kg-zf-hinweis';
+        hinweis.textContent = 'Bitte mindestens eine Position mit Anzahl grösser 0 ausfüllen.';
+        container.insertBefore(hinweis, container.querySelector('.kg-zf-btns'));
+      }
+      return;
+    }
+    const liste = eintraege.join('\n');
+    const text = vorlage.inhalt && vorlage.inhalt.includes(zf.platzhalter)
+      ? vorlage.inhalt.replace(zf.platzhalter, liste)
+      : `${vorlage.inhalt || ''}\n\n${liste}`;
+    zustand.aktuellerEntwurf = text;
+    zustand.aktuelleVorlageId = vorlage.id;
+    if (vorlage.betreff) zustand.aktuellerBetreff = vorlage.betreff;
+    chatBereich.innerHTML = '';
+    kgZeigeEntwurf(chatBereich, bodyEl, zustand, `Vorlage: ${vorlage.titel}`);
   });
 }
 
