@@ -178,7 +178,7 @@ function kgInitialisiere(bodyEl, container, toolbar) {
 
   const button = document.createElement('span');
   button.className = 'kg-btn';
-  button.innerHTML = kgSvg(KG_ICON_BLITZ) + 'Mail-Assistent';
+  button.innerHTML = 'Mail-Assistent';
   toolbar.appendChild(button);
 
   // Panel wird VOR dem Mailtext-Feld eingefuegt (wie Googles eigene "Hilf mir
