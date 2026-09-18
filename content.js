@@ -543,13 +543,23 @@ function kgZusatzfensterHtml(zf) {
       ${optionen.map(o => `<option value="${kgEscape(o.wert)}">${kgEscape(o.wert)}</option>`).join('')}
     </select></td>`;
   };
-  const zeileHtml = (titel, istEigene) => `
-    <tr class="kg-zf-zeile" data-position="${istEigene ? '' : kgEscape(titel)}">
+  // Eine definierte Position hat Dropdown/Zahl-Felder pro Spalte - bei einer
+  // eigenen (freien) Position ergeben genau diese Felder keinen Sinn (die
+  // vorgegebenen Optionen decken sie ja per Definition nicht ab). Darum ist
+  // die eigene Position nur EINE durchgehende Freitext-Zeile statt einzelner
+  // Spalten-Felder.
+  const zeileHtml = (titel) => `
+    <tr class="kg-zf-zeile" data-position="${kgEscape(titel)}">
       <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
-      <td>${istEigene ? '<input type="text" class="kg-zf-eigenname" placeholder="Eigene Position">' : kgEscape(titel)}</td>
+      <td>${kgEscape(titel)}</td>
       ${spalten.map(spalteFeldHtml).join('')}
     </tr>`;
-  const zeilenHtml = positionen.map(p => zeileHtml(p.titel, false)).join('') + (zf.erlaubt_eigene_eingabe ? zeileHtml('', true) : '');
+  const eigeneZeileHtml = () => `
+    <tr class="kg-zf-zeile kg-zf-eigene-zeile" data-position="">
+      <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
+      <td colspan="${spalten.length + 1}"><input type="text" class="kg-zf-eigenname" placeholder="Eigene Position beschreiben (z.B. Lampe Typ 6, Farbe Blau, 10m Kabel)"></td>
+    </tr>`;
+  const zeilenHtml = positionen.map(p => zeileHtml(p.titel)).join('') + (zf.erlaubt_eigene_eingabe ? eigeneZeileHtml() : '');
   return `
     <div class="kg-zusatzfenster">
       <div class="kg-zf-titel">${kgEscape(zf.titel)}</div>
