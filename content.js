@@ -632,7 +632,7 @@ function kgKalenderOeffnen() {
   // Direkt beim Gmail-Fenster platzieren (gleicher Bildschirm bei mehreren
   // Monitoren/geteiltem Bildschirm) - ohne left/top setzt der Browser sonst
   // eine Standardposition, die z.B. auf dem falschen Monitor landen kann.
-  const breite = 420, hoehe = 760;
+  const breite = 900, hoehe = 800;
   const left = Math.round(window.screenX + Math.max(0, (window.outerWidth - breite) / 2));
   const top = Math.round(window.screenY + Math.max(0, (window.outerHeight - hoehe) / 2));
   window.open('https://calendar.google.com/calendar/u/0/r?kgPopup=1', 'kg-kalender', `width=${breite},height=${hoehe},left=${left},top=${top},noopener`);
