@@ -284,12 +284,12 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
   scroll.querySelectorAll('.kg-chips .kg-chip:not(.kg-chip-dropdown)').forEach(chip => {
     chip.addEventListener('click', () => {
       const vorlage = vorlagen.find(v => v.id === chip.dataset.id);
-      const zusatzfenster = vorlage ? kgZusatzfensterVon(vorlage) : null;
-      if (vorlage && zusatzfenster) {
-        // Strukturierte Eingabemaske (z.B. Bestell-Tabelle) zuerst zeigen -
-        // die daraus gebaute Liste ersetzt den Platzhalter direkt, ganz ohne
-        // KI-Aufruf (die Daten sind schon vollstaendig strukturiert).
-        kgZeigeZusatzfenster(zusatzfenster, vorlage, chatBereich, bodyEl, zustand);
+      const zusatzfensterListe = vorlage ? kgZusatzfensterVon(vorlage) : [];
+      if (vorlage && zusatzfensterListe.length) {
+        // Strukturierte Eingabemaske(n) (z.B. Bestell-Tabelle) zuerst zeigen -
+        // die daraus gebaute Liste ersetzt den jeweiligen Platzhalter direkt,
+        // ganz ohne KI-Aufruf (die Daten sind schon vollstaendig strukturiert).
+        kgZeigeZusatzfenster(zusatzfensterListe, vorlage, chatBereich, bodyEl, zustand);
         return;
       }
       const anredeUeberschreibung = zustand.anrede ? KG_ANREDE_ANWEISUNG[zustand.anrede] : null;
@@ -516,15 +516,17 @@ function kgZeigeRueckfrage(chatBereich, data, bodyEl, zustand) {
 }
 
 // ----------------------------------------------------------------------------
-// Zusatzfenster (Typ Tabelle): strukturierte Eingabemaske vor dem Erstellen
-// einer Vorlage mit Positionsliste (z.B. Bestellungen). Die eingebettete
-// 1:1-Relation liefert die Edge Function je nach PostgREST-Erkennung als
-// Objekt oder als Array mit einem Eintrag - hier vereinheitlicht.
+// Zusatzfenster (Typ Tabelle): strukturierte Eingabemaske(n) vor dem
+// Erstellen einer Vorlage mit Positionsliste (z.B. Bestellungen). Ein
+// Zusatzfenster ist eine eigenstaendige, wiederverwendbare Bibliothek -
+// einer Vorlage koennen mehrere zugewiesen sein (ueber die
+// Zuordnungstabelle), die dann gemeinsam in einem Fenster erscheinen.
 // ----------------------------------------------------------------------------
 function kgZusatzfensterVon(vorlage) {
-  const zf = vorlage.mailassistent_zusatzfenster;
-  if (!zf) return null;
-  return Array.isArray(zf) ? (zf[0] || null) : zf;
+  const eintraege = vorlage.mailassistent_vorlage_zusatzfenster;
+  if (!eintraege) return [];
+  const liste = Array.isArray(eintraege) ? eintraege : [eintraege];
+  return liste.map(e => e.mailassistent_zusatzfenster).filter(Boolean);
 }
 // Definierte Position: Dropdown (typ='dropdown') oder Zahlenfeld (typ='zahl'),
 // wie in der Verwaltung konfiguriert.
@@ -566,7 +568,10 @@ function kgZfGenerischeZeileHtml(spalten) {
       ${spalten.map(s => kgZfSpalteFeldHtml(s)).join('')}
     </tr>`;
 }
-function kgZusatzfensterHtml(zf) {
+// Baut nur die Tabelle EINES Zusatzfensters (ohne Titel/Buttons drumherum -
+// die werden einmal gemeinsam fuer alle zugewiesenen Zusatzfenster gebaut,
+// siehe kgZeigeZusatzfenster).
+function kgZfTabelleHtml(zf, index) {
   const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   const positionen = (zf.mailassistent_zusatzfenster_position || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   const spaltenHtml = spalten.map(s => `<th>${kgEscape(s.titel)}</th>`).join('');
@@ -589,91 +594,108 @@ function kgZusatzfensterHtml(zf) {
     zeilenHtml = kgZfGenerischeZeileHtml(spalten);
   }
   return `
-    <div class="kg-zusatzfenster">
+    <div class="kg-zf-block">
       <div class="kg-zf-titel">${kgEscape(zf.titel)}</div>
-      <table class="kg-zf-tabelle">
+      <table class="kg-zf-tabelle" data-zf-index="${index}">
         <thead><tr>${kopfHtml}</tr></thead>
         <tbody>${zeilenHtml}</tbody>
       </table>
+    </div>`;
+}
+function kgZfSammleEintraege(tabelle, zf) {
+  const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
+  const eintraege = [];
+  tabelle.querySelectorAll('.kg-zf-zeile').forEach(zeile => {
+    const anzahl = parseInt(zeile.querySelector('.kg-zf-anzahl').value, 10) || 0;
+    // Generische Zeile (keine Positionen definiert): keine eigene
+    // Positions-Bezeichnung vorhanden - die erste Spalte (z.B. "Artikel")
+    // uebernimmt diese Rolle, der Rest wird als Detail angehaengt.
+    if (zeile.classList.contains('kg-zf-generische-zeile')) {
+      if (!spalten.length) return;
+      const werte = spalten.map(s => {
+        const feld = zeile.querySelector(`.kg-zf-spalte[data-spalte="${CSS.escape(s.titel)}"]`);
+        return feld ? feld.value.trim() : '';
+      });
+      const positionsname = werte[0];
+      if (!positionsname || anzahl <= 0) return;
+      const details = spalten.slice(1)
+        .map((s, i) => werte[i + 1] ? `${s.titel}: ${werte[i + 1]}` : null)
+        .filter(Boolean)
+        .join(', ');
+      eintraege.push(`- ${anzahl}x ${positionsname}${details ? ' (' + details + ')' : ''}`);
+      return;
+    }
+    const eigennameEl = zeile.querySelector('.kg-zf-eigenname');
+    const positionsname = eigennameEl ? eigennameEl.value.trim() : zeile.dataset.position;
+    if (!positionsname || anzahl <= 0) return;
+    const details = spalten
+      .map(s => {
+        const feld = zeile.querySelector(`.kg-zf-spalte[data-spalte="${CSS.escape(s.titel)}"]`);
+        const wert = feld ? feld.value.trim() : '';
+        return wert ? `${s.titel}: ${wert}` : null;
+      })
+      .filter(Boolean)
+      .join(', ');
+    eintraege.push(`- ${anzahl}x ${positionsname}${details ? ' (' + details + ')' : ''}`);
+  });
+  return eintraege;
+}
+// zfListe: alle Zusatzfenster, die dieser Vorlage zugewiesen sind - erscheinen
+// gemeinsam untereinander in einem Fenster mit einer gemeinsamen
+// "Übernehmen"-Aktion, die jede Tabelle in ihren eigenen Platzhalter einsetzt.
+function kgZeigeZusatzfenster(zfListe, vorlage, chatBereich, bodyEl, zustand) {
+  chatBereich.innerHTML = `
+    <div class="kg-zusatzfenster">
+      ${zfListe.map((zf, i) => kgZfTabelleHtml(zf, i)).join('')}
       <div class="kg-zf-btns">
         <button class="kg-zf-abbrechen" type="button">Abbrechen</button>
         <button class="kg-zf-uebernehmen" type="button">Übernehmen &amp; Entwurf erstellen</button>
       </div>
     </div>`;
-}
-function kgZeigeZusatzfenster(zf, vorlage, chatBereich, bodyEl, zustand) {
-  chatBereich.innerHTML = kgZusatzfensterHtml(zf);
   const container = chatBereich.querySelector('.kg-zusatzfenster');
-  const spaltenFuerEigene = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
-  const hatPositionen = (zf.mailassistent_zusatzfenster_position || []).length > 0;
-  const tbody = container.querySelector('.kg-zf-tabelle tbody');
 
-  // Ohne Positionen wachsen die generischen Dropdown-Zeilen genauso
-  // automatisch nach wie die "Eigene Position"-Zeilen bei vorhandenen
-  // Positionen.
-  if (!hatPositionen) {
-    tbody.addEventListener('input', (e) => {
-      const zeile = e.target.closest('.kg-zf-generische-zeile');
-      if (!zeile) return;
-      const zeilen = tbody.querySelectorAll('.kg-zf-generische-zeile');
-      if (zeile !== zeilen[zeilen.length - 1]) return;
-      const hatInhalt = Array.from(zeile.querySelectorAll('input, select')).some(f => f.value.trim());
-      if (hatInhalt) tbody.appendChild(kgZfZeileAusHtml(kgZfGenerischeZeileHtml(spaltenFuerEigene)));
-    });
-  }
+  zfListe.forEach((zf, i) => {
+    const tbody = container.querySelector(`table[data-zf-index="${i}"] tbody`);
+    const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
+    const hatPositionen = (zf.mailassistent_zusatzfenster_position || []).length > 0;
 
-  // Sobald in der letzten "Eigene Position"-Zeile irgendwo etwas eingetragen
-  // wird, automatisch eine weitere leere Zeile darunter anhaengen - so lassen
-  // sich beliebig viele eigene Positionen ergaenzen.
-  if (zf.erlaubt_eigene_eingabe) {
-    tbody.addEventListener('input', (e) => {
-      const zeile = e.target.closest('.kg-zf-eigene-zeile');
-      if (!zeile) return;
-      const eigeneZeilen = tbody.querySelectorAll('.kg-zf-eigene-zeile');
-      if (zeile !== eigeneZeilen[eigeneZeilen.length - 1]) return;
-      const hatInhalt = Array.from(zeile.querySelectorAll('input')).some(f => f.value.trim());
-      if (hatInhalt) tbody.appendChild(kgZfZeileAusHtml(kgZfEigeneZeileHtml(spaltenFuerEigene)));
-    });
-  }
+    // Ohne Positionen wachsen die generischen Dropdown-Zeilen automatisch
+    // nach, mit Positionen die "Eigene Position"-Zeilen - jeweils sobald die
+    // letzte Zeile befuellt wird.
+    if (!hatPositionen) {
+      tbody.addEventListener('input', (e) => {
+        const zeile = e.target.closest('.kg-zf-generische-zeile');
+        if (!zeile) return;
+        const zeilen = tbody.querySelectorAll('.kg-zf-generische-zeile');
+        if (zeile !== zeilen[zeilen.length - 1]) return;
+        const hatInhalt = Array.from(zeile.querySelectorAll('input, select')).some(f => f.value.trim());
+        if (hatInhalt) tbody.appendChild(kgZfZeileAusHtml(kgZfGenerischeZeileHtml(spalten)));
+      });
+    } else if (zf.erlaubt_eigene_eingabe) {
+      tbody.addEventListener('input', (e) => {
+        const zeile = e.target.closest('.kg-zf-eigene-zeile');
+        if (!zeile) return;
+        const eigeneZeilen = tbody.querySelectorAll('.kg-zf-eigene-zeile');
+        if (zeile !== eigeneZeilen[eigeneZeilen.length - 1]) return;
+        const hatInhalt = Array.from(zeile.querySelectorAll('input')).some(f => f.value.trim());
+        if (hatInhalt) tbody.appendChild(kgZfZeileAusHtml(kgZfEigeneZeileHtml(spalten)));
+      });
+    }
+  });
 
   container.querySelector('.kg-zf-abbrechen').addEventListener('click', () => { chatBereich.innerHTML = ''; });
   container.querySelector('.kg-zf-uebernehmen').addEventListener('click', () => {
-    const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
-    const eintraege = [];
-    container.querySelectorAll('.kg-zf-zeile').forEach(zeile => {
-      const anzahl = parseInt(zeile.querySelector('.kg-zf-anzahl').value, 10) || 0;
-      // Generische Zeile (keine Positionen definiert): keine eigene
-      // Positions-Bezeichnung vorhanden - die erste Spalte (z.B. "Artikel")
-      // uebernimmt diese Rolle, der Rest wird als Detail angehaengt.
-      if (zeile.classList.contains('kg-zf-generische-zeile')) {
-        if (!spalten.length) return;
-        const werte = spalten.map(s => {
-          const feld = zeile.querySelector(`.kg-zf-spalte[data-spalte="${CSS.escape(s.titel)}"]`);
-          return feld ? feld.value.trim() : '';
-        });
-        const positionsname = werte[0];
-        if (!positionsname || anzahl <= 0) return;
-        const details = spalten.slice(1)
-          .map((s, i) => werte[i + 1] ? `${s.titel}: ${werte[i + 1]}` : null)
-          .filter(Boolean)
-          .join(', ');
-        eintraege.push(`- ${anzahl}x ${positionsname}${details ? ' (' + details + ')' : ''}`);
-        return;
-      }
-      const eigennameEl = zeile.querySelector('.kg-zf-eigenname');
-      const positionsname = eigennameEl ? eigennameEl.value.trim() : zeile.dataset.position;
-      if (!positionsname || anzahl <= 0) return;
-      const details = spalten
-        .map(s => {
-          const feld = zeile.querySelector(`.kg-zf-spalte[data-spalte="${CSS.escape(s.titel)}"]`);
-          const wert = feld ? feld.value.trim() : '';
-          return wert ? `${s.titel}: ${wert}` : null;
-        })
-        .filter(Boolean)
-        .join(', ');
-      eintraege.push(`- ${anzahl}x ${positionsname}${details ? ' (' + details + ')' : ''}`);
+    let text = vorlage.inhalt || '';
+    let irgendwasAusgefuellt = false;
+    zfListe.forEach((zf, i) => {
+      const tabelle = container.querySelector(`table[data-zf-index="${i}"]`);
+      const eintraege = kgZfSammleEintraege(tabelle, zf);
+      if (!eintraege.length) return;
+      irgendwasAusgefuellt = true;
+      const liste = eintraege.join('\n');
+      text = text.includes(zf.platzhalter) ? text.replace(zf.platzhalter, liste) : `${text}\n\n${liste}`;
     });
-    if (!eintraege.length) {
+    if (!irgendwasAusgefuellt) {
       if (!container.querySelector('.kg-zf-hinweis')) {
         const hinweis = document.createElement('div');
         hinweis.className = 'kg-zf-hinweis';
@@ -682,10 +704,6 @@ function kgZeigeZusatzfenster(zf, vorlage, chatBereich, bodyEl, zustand) {
       }
       return;
     }
-    const liste = eintraege.join('\n');
-    const text = vorlage.inhalt && vorlage.inhalt.includes(zf.platzhalter)
-      ? vorlage.inhalt.replace(zf.platzhalter, liste)
-      : `${vorlage.inhalt || ''}\n\n${liste}`;
     zustand.aktuellerEntwurf = text;
     zustand.aktuelleVorlageId = vorlage.id;
     if (vorlage.betreff) zustand.aktuellerBetreff = vorlage.betreff;

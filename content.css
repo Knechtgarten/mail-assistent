@@ -135,6 +135,7 @@
 /* Zusatzfenster (Typ Tabelle): strukturierte Eingabemaske vor dem Erstellen
    einer Vorlage mit Positionsliste (z.B. Bestellungen). */
 .kg-zusatzfenster { border: 1px solid #E1E5E9; border-radius: 10px; padding: 10px 12px; background: #fff; }
+.kg-zf-block + .kg-zf-block { margin-top: 14px; padding-top: 12px; border-top: 1px solid #E1E5E9; }
 .kg-zf-titel { font-size: 12px; font-weight: 700; color: #323E4E; margin-bottom: 8px; }
 .kg-zf-tabelle { width: 100%; border-collapse: collapse; font-size: 11px; }
 .kg-zf-tabelle th { text-align: left; color: #8B9097; font-weight: 600; padding: 0 8px 6px 0; white-space: nowrap; border-bottom: 1px solid #E1E5E9; }
