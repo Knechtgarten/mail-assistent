@@ -239,9 +239,10 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
 
   // Dropdown-Gruppen buendeln mehrere Vorlagen unter einem Button (z.B.
   // "Bestellungen"), damit die Chip-Leiste bei vielen aehnlichen Vorlagen
-  // nicht unuebersichtlich wird. Untermenues bleiben im Fluss statt als
-  // schwebendes Overlay (wie das Panel selbst) - vermeidet Positionierungs-
-  // Probleme innerhalb von Gmail.
+  // nicht unuebersichtlich wird. Untermenue ist ein echtes, klein bemessenes
+  // Dropdown direkt unter dem jeweiligen Button (per JS positioniert, da die
+  // Chips zeilenumbrechen) - anders als beim grossen Panel frueher ist das
+  // hier ein kleiner, begrenzter Bereich, darum unproblematisch.
   const obersteEbene = vorlagen.filter(v => !v.parent_id);
   const kinderVon = (elternId) => vorlagen.filter(v => v.parent_id === elternId);
   const chipHtml = (v) => `<span class="kg-chip${istExpress(v) ? ' kg-chip-express' : ''}" data-id="${v.id}" title="${istExpress(v) ? 'Express - wird sofort eingefuegt' : ''}">${kgEscape(v.titel)}</span>`;
@@ -252,7 +253,7 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
       : chipHtml(v)
     ).join('')}</div>
     ${obersteEbene.filter(v => v.typ === 'dropdown').map(gruppe => `
-      <div class="kg-chips kg-dropdown-submenu" data-dropdown-id="${gruppe.id}" style="display:none;">${kinderVon(gruppe.id).map(chipHtml).join('') || '<span class="kg-dropdown-leer">Keine Vorlagen in dieser Gruppe.</span>'}</div>
+      <div class="kg-chips kg-dropdown-submenu" data-dropdown-id="${gruppe.id}">${kinderVon(gruppe.id).map(chipHtml).join('') || '<span class="kg-dropdown-leer">Keine Vorlagen in dieser Gruppe.</span>'}</div>
     `).join('')}
     <div class="kg-row">
       <div class="kg-anrede-chips">${kgAnredeChipsHtml()}</div>
@@ -269,20 +270,38 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
 
   // Sichtbarkeit bewusst per Inline-Style (nicht nur per CSS-Klasse) steuern -
   // so haengt "geschlossen beim Start" nicht davon ab, dass eine externe
-  // Stylesheet-Datei im Browser schon aktualisiert ist.
-  scroll.querySelectorAll('.kg-dropdown-submenu').forEach(s => { s.style.display = 'none'; });
+  // Stylesheet-Datei im Browser schon aktualisiert ist. Position wird beim
+  // Oeffnen live berechnet, weil die Chips zeilenumbrechen koennen - der
+  // Button steht also nicht immer an derselben Stelle.
+  const kgSchliesseAlleDropdowns = () => {
+    scroll.querySelectorAll('.kg-dropdown-submenu').forEach(s => { s.style.display = 'none'; });
+    scroll.querySelectorAll('.kg-chip-dropdown').forEach(b => b.classList.remove('kg-chip-aktiv'));
+  };
+  kgSchliesseAlleDropdowns();
   scroll.querySelectorAll('.kg-chip-dropdown').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
       const submenu = scroll.querySelector(`.kg-dropdown-submenu[data-dropdown-id="${btn.dataset.dropdownId}"]`);
       const warOffen = submenu.style.display !== 'none';
-      scroll.querySelectorAll('.kg-dropdown-submenu').forEach(s => { s.style.display = 'none'; });
-      scroll.querySelectorAll('.kg-chip-dropdown').forEach(b => b.classList.remove('kg-chip-aktiv'));
-      if (!warOffen) { submenu.style.display = 'flex'; btn.classList.add('kg-chip-aktiv'); }
+      kgSchliesseAlleDropdowns();
+      if (!warOffen) {
+        const scrollRect = scroll.getBoundingClientRect();
+        const btnRect = btn.getBoundingClientRect();
+        submenu.style.top = Math.round(btnRect.bottom - scrollRect.top + 4) + 'px';
+        submenu.style.left = Math.round(btnRect.left - scrollRect.left) + 'px';
+        submenu.style.display = 'flex';
+        btn.classList.add('kg-chip-aktiv');
+      }
     });
+  });
+  // Klick irgendwo sonst im Panel schliesst ein offenes Dropdown wieder.
+  scroll.addEventListener('click', (e) => {
+    if (!e.target.closest('.kg-chip-dropdown') && !e.target.closest('.kg-dropdown-submenu')) kgSchliesseAlleDropdowns();
   });
 
   scroll.querySelectorAll('.kg-chips .kg-chip:not(.kg-chip-dropdown)').forEach(chip => {
     chip.addEventListener('click', () => {
+      kgSchliesseAlleDropdowns();
       const vorlage = vorlagen.find(v => v.id === chip.dataset.id);
       const zusatzfensterListe = vorlage ? kgZusatzfensterVon(vorlage) : [];
       if (vorlage && zusatzfensterListe.length) {

@@ -34,7 +34,7 @@
 }
 .kg-panel.kg-show { display: flex; }
 
-.kg-scroll { padding: 12px 14px; width: 100%; }
+.kg-scroll { padding: 12px 14px; width: 100%; position: relative; }
 
 .kg-chips { display: flex; gap: 5px; flex-wrap: wrap; }
 .kg-chip {
@@ -46,17 +46,22 @@
 .kg-chip-express { border-color: #D1DB5F; }
 .kg-chip-express svg { stroke: #8b9b2a; }
 
-/* Dropdown-Gruppen: buendeln mehrere Vorlagen unter einem Button, das
-   Untermenue bleibt im Fluss (kein Overlay) und wird nur bei Bedarf
-   eingeblendet - direkt unter der Haupt-Chipleiste. */
+/* Dropdown-Gruppen: buendeln mehrere Vorlagen unter einem Button. Echtes,
+   klein bemessenes Dropdown direkt unter dem Button (Position wird per JS
+   berechnet, da Chips zeilenumbrechen koennen) - bleibt aber innerhalb des
+   begrenzten Panel-Bereichs (.kg-scroll ist der Positionierungs-Anker),
+   anders als ein frei schwebendes Overlay ueber der ganzen Seite. */
 .kg-chip-dropdown { display: inline-flex; align-items: center; gap: 4px; border-color: #D6E7F4; }
 .kg-chip-dropdown svg { margin-right: 0; stroke-width: 2.5; opacity: .7; transition: transform .15s; }
 .kg-chip-dropdown:hover svg { opacity: 1; }
 .kg-chip-dropdown.kg-chip-aktiv { background: #323E4E; border-color: #323E4E; color: #fff; }
 .kg-chip-dropdown.kg-chip-aktiv svg { stroke: #fff; opacity: 1; transform: rotate(180deg); }
-.kg-dropdown-submenu { display: none; margin-top: 5px; padding: 7px; background: #fff; border: 1px solid #E1E5E9; border-radius: 10px; }
-.kg-dropdown-submenu.kg-show { display: flex; }
-.kg-dropdown-leer { font-size: 11px; color: #8B9097; font-style: italic; padding: 2px 0; }
+.kg-dropdown-submenu {
+  display: none; position: absolute; z-index: 30; width: max-content; max-width: 240px;
+  padding: 6px; background: #fff; border: 1px solid #E1E5E9; border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(35,43,53,.14);
+}
+.kg-dropdown-leer { font-size: 11px; color: #8B9097; font-style: italic; padding: 2px 4px; }
 
 .kg-row { display: flex; align-items: center; gap: 5px; margin-top: 8px; }
 .kg-textarea {
