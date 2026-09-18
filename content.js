@@ -209,11 +209,10 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
     vorlagen = res.vorlagen || [];
   } catch (e) { /* Chips bleiben dann einfach leer */ }
 
-  // Express: eine einfache Vorlage ohne [Platzhalter] braucht keine KI - die
-  // gibt es sowieso nur 1:1 wieder. Dann sofort einfuegen statt auf einen
-  // API-Aufruf zu warten (spart 2-4 Sekunden und Kosten).
-  const KG_PLATZHALTER_REGEX = /\[[^\]]+\]/;
-  const istExpress = (v) => v.typ === 'einfach' && v.inhalt && !KG_PLATZHALTER_REGEX.test(v.inhalt);
+  // Express: jede einfache Vorlage wird 1:1 sofort angezeigt, ganz ohne
+  // KI-Aufruf (spart 2-4 Sekunden und Kosten) - auch wenn sie noch
+  // [Platzhalter] enthaelt, die dann von Hand ausgefuellt werden.
+  const istExpress = (v) => v.typ === 'einfach' && !!v.inhalt;
 
   // Dropdown-Gruppen buendeln mehrere Vorlagen unter einem Button (z.B.
   // "Bestellungen"), damit die Chip-Leiste bei vielen aehnlichen Vorlagen
