@@ -230,7 +230,7 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
       : chipHtml(v)
     ).join('')}</div>
     ${obersteEbene.filter(v => v.typ === 'dropdown').map(gruppe => `
-      <div class="kg-chips kg-dropdown-submenu" data-dropdown-id="${gruppe.id}">${kinderVon(gruppe.id).map(chipHtml).join('') || '<span class="kg-dropdown-leer">Keine Vorlagen in dieser Gruppe.</span>'}</div>
+      <div class="kg-chips kg-dropdown-submenu" data-dropdown-id="${gruppe.id}" style="display:none;">${kinderVon(gruppe.id).map(chipHtml).join('') || '<span class="kg-dropdown-leer">Keine Vorlagen in dieser Gruppe.</span>'}</div>
     `).join('')}
     <div class="kg-row">
       <div class="kg-anrede-chips">${kgAnredeChipsHtml()}</div>
@@ -245,13 +245,17 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
   kgVerdrahteAnredeChips(scroll.querySelector('.kg-anrede-chips'), chatBereich, bodyEl, zustand);
   kgAktualisiereAnredeChips(zustand);
 
+  // Sichtbarkeit bewusst per Inline-Style (nicht nur per CSS-Klasse) steuern -
+  // so haengt "geschlossen beim Start" nicht davon ab, dass eine externe
+  // Stylesheet-Datei im Browser schon aktualisiert ist.
+  scroll.querySelectorAll('.kg-dropdown-submenu').forEach(s => { s.style.display = 'none'; });
   scroll.querySelectorAll('.kg-chip-dropdown').forEach(btn => {
     btn.addEventListener('click', () => {
       const submenu = scroll.querySelector(`.kg-dropdown-submenu[data-dropdown-id="${btn.dataset.dropdownId}"]`);
-      const warOffen = submenu.classList.contains('kg-show');
-      scroll.querySelectorAll('.kg-dropdown-submenu').forEach(s => s.classList.remove('kg-show'));
+      const warOffen = submenu.style.display !== 'none';
+      scroll.querySelectorAll('.kg-dropdown-submenu').forEach(s => { s.style.display = 'none'; });
       scroll.querySelectorAll('.kg-chip-dropdown').forEach(b => b.classList.remove('kg-chip-aktiv'));
-      if (!warOffen) { submenu.classList.add('kg-show'); btn.classList.add('kg-chip-aktiv'); }
+      if (!warOffen) { submenu.style.display = 'flex'; btn.classList.add('kg-chip-aktiv'); }
     });
   });
 
