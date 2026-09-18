@@ -23,26 +23,38 @@ const KG_ANON_KEY = 'sb_publishable_DoeD4uEnwemmnFu4AxE9uw_5lmQYc5P';
 const KG_ICON_BLITZ = '<path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l2.5 2.5M16.5 16.5 19 19M19 5l-2.5 2.5M7.5 16.5 5 19"/>';
 const KG_ICON_MIC = '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><path d="M12 18v3"/>';
 const KG_ICON_CHEVRON = '<path d="M6 9l6 6 6-6"/>';
+const KG_ICON_PERSON = '<circle cx="12" cy="7.5" r="3.5"/><path d="M4.5 19.5c1-4 4-6 7.5-6s6.5 2 7.5 6"/>';
+const KG_ICON_PERSONEN = '<circle cx="8" cy="7.5" r="3.1"/><path d="M1.5 19.7c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17.5" cy="8.3" r="2.7"/><path d="M12.7 19.9c.6-3 2.7-4.7 4.8-4.7 2.4 0 4.4 1.8 5 4.7"/>';
 
-// Anrede-Umschalter (Du/Ihr/Sie) - von Anfang an sichtbar (schon bevor eine
-// Vorlage gewaehlt ist), damit man die Praeferenz vorher setzen kann statt
-// hinterher nachbessern zu muessen. Wirkt aber genauso, wenn schon ein
-// Entwurf steht - dann sofort umformulieren statt nur merken.
+// Anrede-Umschalter: vier Varianten statt einem eigenen "Ihr"-Wort - das
+// wurde als verwirrend empfunden, wenn eigentlich "zwei Personen, mit denen
+// man per Du ist" gemeint ist. Die Buttons zeigen darum nur "Du"/"Sie", die
+// Anzahl Personen steckt im Icon (ein bzw. zwei Koepfe). Von Anfang an
+// sichtbar (schon bevor eine Vorlage gewaehlt ist), damit man die Praeferenz
+// vorher setzen kann statt hinterher nachzubessern. Wirkt aber genauso, wenn
+// schon ein Entwurf steht - dann sofort umformulieren statt nur merken.
 const KG_ANREDE_ANWEISUNG = {
-  Du: 'Die ganze Mail konsequent per "Du" formulieren (Anrede, Verbformen und Pronomen anpassen).',
-  Ihr: 'Die ganze Mail konsequent per "Ihr" formulieren - das ist hier die informelle Mehrzahl-Anrede (mehrere Personen, mit denen man per Du ist), nicht die formelle "Sie"-Form. Anrede, Verbformen und Pronomen anpassen.',
-  Sie: 'Die ganze Mail konsequent per "Sie" formulieren (Anrede, Verbformen und Pronomen anpassen).',
+  Du: 'Die ganze Mail konsequent per "Du" formulieren, adressiert an eine einzelne Person (Anrede, Verbformen und Pronomen anpassen).',
+  DuMehrere: 'Die ganze Mail konsequent per "Ihr" formulieren - informelle Mehrzahl-Anrede fuer mehrere Personen, mit denen man per Du ist (Anrede, Verbformen und Pronomen anpassen).',
+  Sie: 'Die ganze Mail konsequent per "Sie" formulieren, adressiert an eine einzelne Person (Anrede, Verbformen und Pronomen anpassen).',
+  SieMehrere: 'Die ganze Mail konsequent per "Sie" formulieren, adressiert an mehrere Personen gemeinsam (z.B. Begruessung wie "Guten Tag zusammen" statt an eine einzelne Person, Anrede/Verbformen entsprechend anpassen).',
 };
-// Kurze Erklaerung als Tooltip, weil auf Anhieb nicht immer klar ist, welche
-// Form fuer wen passt - v.a. "Sie" gilt fuer eine UND mehrere Personen
-// gleichzeitig (im Deutschen gibt es keine eigene Mehrzahl-Form dafuer).
+// Kurze Erklaerung als Tooltip, weil die Buttons "Du"/"Sie" doppelt vorkommen
+// und sich nur durchs Icon unterscheiden.
 const KG_ANREDE_ERKLAERUNG = {
   Du: 'Eine Person, mit der man per Du ist',
-  Ihr: 'Mehrere Personen, mit denen man per Du ist',
-  Sie: 'Eine oder mehrere Personen, formell',
+  DuMehrere: 'Mehrere Personen, mit denen man per Du ist',
+  Sie: 'Eine Person, formell',
+  SieMehrere: 'Mehrere Personen, formell',
 };
+const KG_ANREDE_ICON = { Du: KG_ICON_PERSON, DuMehrere: KG_ICON_PERSONEN, Sie: KG_ICON_PERSON, SieMehrere: KG_ICON_PERSONEN };
+const KG_ANREDE_KURZ = { Du: 'Du', DuMehrere: 'Du', Sie: 'Sie', SieMehrere: 'Sie' };
+// Fuer die Chat-Verlauf-Meldung ("Auf ... umstellen") braucht es die
+// ausfuehrlichere Bezeichnung, sonst waeren zwei Eintraege nicht
+// unterscheidbar.
+const KG_ANREDE_LABEL = { Du: 'Du', DuMehrere: 'Du (mehrere Personen)', Sie: 'Sie', SieMehrere: 'Sie (mehrere Personen)' };
 function kgAnredeChipsHtml() {
-  return ['Du', 'Ihr', 'Sie'].map(a => `<span class="kg-chip" data-anrede="${a}" title="${kgEscape(KG_ANREDE_ERKLAERUNG[a])}">${a}</span>`).join('');
+  return ['Du', 'DuMehrere', 'Sie', 'SieMehrere'].map(a => `<span class="kg-chip kg-chip-anrede" data-anrede="${a}" title="${kgEscape(KG_ANREDE_ERKLAERUNG[a])}">${kgSvg(KG_ANREDE_ICON[a], 13)}${KG_ANREDE_KURZ[a]}</span>`).join('');
 }
 function kgAktualisiereAnredeChips(zustand) {
   zustand.panel.querySelectorAll('.kg-anrede-chips .kg-chip').forEach(chip => {
@@ -58,11 +70,11 @@ function kgAnredeKlick(anrede, chatBereich, bodyEl, zustand) {
     // Es steht schon ein Entwurf - sofort umformulieren statt nur merken.
     const anweisung = zustand.anrede
       ? KG_ANREDE_ANWEISUNG[zustand.anrede]
-      : 'Keine feste Du/Ihr/Sie-Anrede vorgeben - nach Vorlage bzw. Schreibstil formulieren.';
+      : 'Keine feste Anrede-Form vorgeben - nach Vorlage bzw. Schreibstil formulieren.';
     kgGeneriere(
       { modus: 'nachbessern', aktuellerEntwurf: zustand.aktuellerEntwurf, anweisung, vorlageId: zustand.aktuelleVorlageId },
       chatBereich, bodyEl, zustand,
-      zustand.anrede ? `Auf "${zustand.anrede}" umstellen` : 'Anrede zurücksetzen'
+      zustand.anrede ? `Auf "${KG_ANREDE_LABEL[zustand.anrede]}" umstellen` : 'Anrede zurücksetzen'
     );
   }
 }
