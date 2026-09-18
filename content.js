@@ -519,16 +519,6 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
 }
 
 function kgZeigeRueckfrage(chatBereich, data, bodyEl, zustand) {
-  // Anrede-Praeferenz soll schon VOR der Antwortwahl setzbar sein, genauso
-  // wie beim Verfassen - sonst muesste man erst antworten und danach nochmal
-  // nachbessern.
-  const anredeDiv = document.createElement('div');
-  anredeDiv.className = 'kg-anrede-chips kg-anrede-chips-rueckfrage';
-  anredeDiv.innerHTML = kgAnredeChipsHtml();
-  chatBereich.appendChild(anredeDiv);
-  kgVerdrahteAnredeChips(anredeDiv, chatBereich, bodyEl, zustand);
-  kgAktualisiereAnredeChips(zustand);
-
   const div = document.createElement('div');
   div.className = 'kg-msg kg-frage';
   div.innerHTML = `<div class="kg-bubble">${kgEscape(data.frage)}</div>
