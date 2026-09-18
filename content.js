@@ -612,11 +612,6 @@ function kgZfTabelleHtml(zf, index) {
 // unterschiedlichen Seiten sich sonst nicht direkt erreichen koennen.
 // ----------------------------------------------------------------------------
 const KG_KALENDER_STORAGE_KEY = 'kg_kalender_vorschlaege';
-function kgAufzaehlungOder(arr) {
-  if (arr.length === 1) return arr[0];
-  if (arr.length === 2) return `${arr[0]} oder ${arr[1]}`;
-  return `${arr.slice(0, -1).join(', ')} oder ${arr[arr.length - 1]}`;
-}
 function kgZfKalenderBlockHtml(zf, index) {
   return `
     <div class="kg-zf-block" data-zf-kalender-index="${index}">
@@ -767,7 +762,9 @@ function kgZeigeZusatzfenster(zfListe, vorlage, chatBereich, bodyEl, zustand) {
         const liste = daten[KG_KALENDER_STORAGE_KEY] || [];
         if (!liste.length) continue;
         irgendwasAusgefuellt = true;
-        const terminText = kgAufzaehlungOder(liste.map(e => e.anzeige));
+        // Untereinander als Liste statt in einer Zeile mit "oder" - Kunde
+        // soll die Optionen klar getrennt sehen.
+        const terminText = liste.length === 1 ? liste[0].anzeige : liste.map(e => `- ${e.anzeige}`).join('\n');
         text = text.includes(zf.platzhalter) ? text.replace(zf.platzhalter, terminText) : `${text}\n\n${terminText}`;
         await chrome.storage.local.set({ [KG_KALENDER_STORAGE_KEY]: [] });
         continue;
