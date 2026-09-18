@@ -530,9 +530,13 @@ function kgZusatzfensterHtml(zf) {
   const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   const positionen = (zf.mailassistent_zusatzfenster_position || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   const spaltenHtml = spalten.map(s => `<th>${kgEscape(s.titel)}</th>`).join('');
-  // Zusatzspalten werden immer per Dropdown mit den in der Verwaltung
-  // hinterlegten Optionen abgefuellt, nie per Freitext.
+  // Zusatzspalten sind entweder ein Dropdown mit den in der Verwaltung
+  // hinterlegten Optionen, oder (typ='zahl') ein freies Zahlenfeld
+  // (z.B. Kabellaenge in Metern - die Einheit steht im Spaltennamen).
   const spalteFeldHtml = (s) => {
+    if (s.typ === 'zahl') {
+      return `<td><input type="number" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}"></td>`;
+    }
     const optionen = (s.mailassistent_zusatzfenster_spalte_option || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
     return `<td><select class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}">
       <option value=""></option>
