@@ -526,40 +526,46 @@ function kgZusatzfensterVon(vorlage) {
   if (!zf) return null;
   return Array.isArray(zf) ? (zf[0] || null) : zf;
 }
+// Definierte Position: Dropdown (typ='dropdown') oder Zahlenfeld (typ='zahl'),
+// wie in der Verwaltung konfiguriert.
+function kgZfSpalteFeldHtml(s) {
+  if (s.typ === 'zahl') {
+    return `<td><input type="number" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}"></td>`;
+  }
+  const optionen = (s.mailassistent_zusatzfenster_spalte_option || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
+  return `<td><select class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}">
+    <option value=""></option>
+    ${optionen.map(o => `<option value="${kgEscape(o.wert)}">${kgEscape(o.wert)}</option>`).join('')}
+  </select></td>`;
+}
+// Eigene Position: exakt dieselben Spalten wie oben, aber immer als leeres
+// Freitextfeld statt Dropdown/Zahlenfeld - die vorgegebenen Optionen decken
+// eine eigene Position per Definition nicht ab.
+function kgZfEigeneZeileHtml(spalten) {
+  return `
+    <tr class="kg-zf-zeile kg-zf-eigene-zeile" data-position="">
+      <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
+      <td><input type="text" class="kg-zf-eigenname" placeholder="Eigene Position"></td>
+      ${spalten.map(s => `<td><input type="text" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}" placeholder="frei"></td>`).join('')}
+    </tr>`;
+}
+function kgZfZeileAusHtml(html) {
+  const wrapper = document.createElement('tbody');
+  wrapper.innerHTML = html;
+  return wrapper.firstElementChild;
+}
 function kgZusatzfensterHtml(zf) {
   const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   const positionen = (zf.mailassistent_zusatzfenster_position || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   const spaltenHtml = spalten.map(s => `<th>${kgEscape(s.titel)}</th>`).join('');
-  // Zusatzspalten sind entweder ein Dropdown mit den in der Verwaltung
-  // hinterlegten Optionen, oder (typ='zahl') ein freies Zahlenfeld
-  // (z.B. Kabellaenge in Metern - die Einheit steht im Spaltennamen).
-  const spalteFeldHtml = (s) => {
-    if (s.typ === 'zahl') {
-      return `<td><input type="number" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}"></td>`;
-    }
-    const optionen = (s.mailassistent_zusatzfenster_spalte_option || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
-    return `<td><select class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}">
-      <option value=""></option>
-      ${optionen.map(o => `<option value="${kgEscape(o.wert)}">${kgEscape(o.wert)}</option>`).join('')}
-    </select></td>`;
-  };
-  // Eine definierte Position hat Dropdown/Zahl-Felder pro Spalte - bei einer
-  // eigenen (freien) Position ergeben genau diese Felder keinen Sinn (die
-  // vorgegebenen Optionen decken sie ja per Definition nicht ab). Darum ist
-  // die eigene Position nur EINE durchgehende Freitext-Zeile statt einzelner
-  // Spalten-Felder.
   const zeileHtml = (titel) => `
     <tr class="kg-zf-zeile" data-position="${kgEscape(titel)}">
       <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
       <td>${kgEscape(titel)}</td>
-      ${spalten.map(spalteFeldHtml).join('')}
+      ${spalten.map(s => kgZfSpalteFeldHtml(s)).join('')}
     </tr>`;
-  const eigeneZeileHtml = () => `
-    <tr class="kg-zf-zeile kg-zf-eigene-zeile" data-position="">
-      <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
-      <td colspan="${spalten.length + 1}"><input type="text" class="kg-zf-eigenname" placeholder="Eigene Position beschreiben (z.B. Lampe Typ 6, Farbe Blau, 10m Kabel)"></td>
-    </tr>`;
-  const zeilenHtml = positionen.map(p => zeileHtml(p.titel)).join('') + (zf.erlaubt_eigene_eingabe ? eigeneZeileHtml() : '');
+  const zeilenHtml = positionen.map(p => zeileHtml(p.titel)).join('')
+    + (zf.erlaubt_eigene_eingabe ? kgZfEigeneZeileHtml(spalten) : '');
   return `
     <div class="kg-zusatzfenster">
       <div class="kg-zf-titel">${kgEscape(zf.titel)}</div>
@@ -576,6 +582,23 @@ function kgZusatzfensterHtml(zf) {
 function kgZeigeZusatzfenster(zf, vorlage, chatBereich, bodyEl, zustand) {
   chatBereich.innerHTML = kgZusatzfensterHtml(zf);
   const container = chatBereich.querySelector('.kg-zusatzfenster');
+  const spaltenFuerEigene = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
+  const tbody = container.querySelector('.kg-zf-tabelle tbody');
+
+  // Sobald in der letzten "Eigene Position"-Zeile irgendwo etwas eingetragen
+  // wird, automatisch eine weitere leere Zeile darunter anhaengen - so lassen
+  // sich beliebig viele eigene Positionen ergaenzen.
+  if (zf.erlaubt_eigene_eingabe) {
+    tbody.addEventListener('input', (e) => {
+      const zeile = e.target.closest('.kg-zf-eigene-zeile');
+      if (!zeile) return;
+      const eigeneZeilen = tbody.querySelectorAll('.kg-zf-eigene-zeile');
+      if (zeile !== eigeneZeilen[eigeneZeilen.length - 1]) return;
+      const hatInhalt = Array.from(zeile.querySelectorAll('input')).some(f => f.value.trim());
+      if (hatInhalt) tbody.appendChild(kgZfZeileAusHtml(kgZfEigeneZeileHtml(spaltenFuerEigene)));
+    });
+  }
+
   container.querySelector('.kg-zf-abbrechen').addEventListener('click', () => { chatBereich.innerHTML = ''; });
   container.querySelector('.kg-zf-uebernehmen').addEventListener('click', () => {
     const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
