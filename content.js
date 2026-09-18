@@ -33,8 +33,16 @@ const KG_ANREDE_ANWEISUNG = {
   Ihr: 'Die ganze Mail konsequent per "Ihr" formulieren - das ist hier die informelle Mehrzahl-Anrede (mehrere Personen, mit denen man per Du ist), nicht die formelle "Sie"-Form. Anrede, Verbformen und Pronomen anpassen.',
   Sie: 'Die ganze Mail konsequent per "Sie" formulieren (Anrede, Verbformen und Pronomen anpassen).',
 };
+// Kurze Erklaerung als Tooltip, weil auf Anhieb nicht immer klar ist, welche
+// Form fuer wen passt - v.a. "Sie" gilt fuer eine UND mehrere Personen
+// gleichzeitig (im Deutschen gibt es keine eigene Mehrzahl-Form dafuer).
+const KG_ANREDE_ERKLAERUNG = {
+  Du: 'Eine Person, mit der man per Du ist',
+  Ihr: 'Mehrere Personen, mit denen man per Du ist',
+  Sie: 'Eine oder mehrere Personen, formell',
+};
 function kgAnredeChipsHtml() {
-  return ['Du', 'Ihr', 'Sie'].map(a => `<span class="kg-chip" data-anrede="${a}">${a}</span>`).join('');
+  return ['Du', 'Ihr', 'Sie'].map(a => `<span class="kg-chip" data-anrede="${a}" title="${kgEscape(KG_ANREDE_ERKLAERUNG[a])}">${a}</span>`).join('');
 }
 function kgAktualisiereAnredeChips(zustand) {
   zustand.panel.querySelectorAll('.kg-anrede-chips .kg-chip').forEach(chip => {
