@@ -57,10 +57,12 @@
 .kg-chip-dropdown.kg-chip-aktiv { background: #323E4E; border-color: #323E4E; color: #fff; }
 .kg-chip-dropdown.kg-chip-aktiv svg { stroke: #fff; opacity: 1; transform: rotate(180deg); }
 .kg-dropdown-submenu {
-  display: none; position: absolute; z-index: 30; width: max-content; max-width: 240px;
+  display: none; flex-direction: column; align-items: stretch; gap: 3px;
+  position: absolute; z-index: 30; width: max-content; max-width: 240px;
   padding: 6px; background: #fff; border: 1px solid #E1E5E9; border-radius: 10px;
   box-shadow: 0 4px 14px rgba(35,43,53,.14);
 }
+.kg-dropdown-submenu .kg-chip { text-align: left; }
 .kg-dropdown-leer { font-size: 11px; color: #8B9097; font-style: italic; padding: 2px 4px; }
 
 .kg-row { display: flex; align-items: center; gap: 5px; margin-top: 8px; }
