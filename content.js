@@ -550,7 +550,7 @@ function kgZusatzfensterHtml(zf) {
     <div class="kg-zusatzfenster">
       <div class="kg-zf-titel">${kgEscape(zf.titel)}</div>
       <table class="kg-zf-tabelle">
-        <thead><tr><th>Anzahl</th><th></th>${spaltenHtml}</tr></thead>
+        <thead><tr><th>Anzahl</th><th>Position</th>${spaltenHtml}</tr></thead>
         <tbody>${zeilenHtml}</tbody>
       </table>
       <div class="kg-zf-btns">
