@@ -605,6 +605,43 @@ function kgZfTabelleHtml(zf, index) {
       </table>
     </div>`;
 }
+// ----------------------------------------------------------------------------
+// Zusatzfenster Typ "kalender": zeigt Termine, die auf calendar.google.com
+// per "In Mail übernehmen"-Button gesammelt wurden (siehe calendar.js). Die
+// Uebergabe laeuft ueber chrome.storage.local, da Content-Scripts auf
+// unterschiedlichen Seiten sich sonst nicht direkt erreichen koennen.
+// ----------------------------------------------------------------------------
+const KG_KALENDER_STORAGE_KEY = 'kg_kalender_vorschlaege';
+function kgAufzaehlungOder(arr) {
+  if (arr.length === 1) return arr[0];
+  if (arr.length === 2) return `${arr[0]} oder ${arr[1]}`;
+  return `${arr.slice(0, -1).join(', ')} oder ${arr[arr.length - 1]}`;
+}
+function kgZfKalenderBlockHtml(zf, index) {
+  return `
+    <div class="kg-zf-block" data-zf-kalender-index="${index}">
+      <div class="kg-zf-titel">${kgEscape(zf.titel)}</div>
+      <div class="kg-zf-kalender-liste"></div>
+      <div class="kg-zf-kalender-hinweis">Öffne <a href="https://calendar.google.com" target="_blank" rel="noopener">Google Kalender</a>, klicke auf eine freie Zeit und dann auf „In Mail übernehmen" – die Termine erscheinen hier automatisch.</div>
+    </div>`;
+}
+function kgKalenderChipHtml(eintrag) {
+  return `<span class="kg-kal-chip" data-id="${kgEscape(eintrag.id)}">${kgEscape(eintrag.anzeige)}<span class="kg-kal-chip-del">✕</span></span>`;
+}
+async function kgZfKalenderListeRendern(block) {
+  const daten = await chrome.storage.local.get(KG_KALENDER_STORAGE_KEY);
+  const liste = daten[KG_KALENDER_STORAGE_KEY] || [];
+  block.querySelector('.kg-zf-kalender-liste').innerHTML = liste.map(kgKalenderChipHtml).join('');
+  block.querySelector('.kg-zf-kalender-hinweis').style.display = liste.length ? 'none' : '';
+  block.querySelectorAll('.kg-kal-chip-del').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.parentElement.dataset.id;
+      const d = await chrome.storage.local.get(KG_KALENDER_STORAGE_KEY);
+      const neu = (d[KG_KALENDER_STORAGE_KEY] || []).filter(e => e.id !== id);
+      await chrome.storage.local.set({ [KG_KALENDER_STORAGE_KEY]: neu });
+    });
+  });
+}
 function kgZfSammleEintraege(tabelle, zf) {
   const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   const eintraege = [];
@@ -649,15 +686,26 @@ function kgZfSammleEintraege(tabelle, zf) {
 function kgZeigeZusatzfenster(zfListe, vorlage, chatBereich, bodyEl, zustand) {
   chatBereich.innerHTML = `
     <div class="kg-zusatzfenster">
-      ${zfListe.map((zf, i) => kgZfTabelleHtml(zf, i)).join('')}
+      ${zfListe.map((zf, i) => zf.typ === 'kalender' ? kgZfKalenderBlockHtml(zf, i) : kgZfTabelleHtml(zf, i)).join('')}
       <div class="kg-zf-btns">
         <button class="kg-zf-abbrechen" type="button">Abbrechen</button>
         <button class="kg-zf-uebernehmen" type="button">Übernehmen &amp; Entwurf erstellen</button>
       </div>
     </div>`;
   const container = chatBereich.querySelector('.kg-zusatzfenster');
+  const kalenderAufraeumen = [];
 
   zfListe.forEach((zf, i) => {
+    if (zf.typ === 'kalender') {
+      const block = container.querySelector(`[data-zf-kalender-index="${i}"]`);
+      kgZfKalenderListeRendern(block);
+      const listener = (changes, area) => {
+        if (area === 'local' && changes[KG_KALENDER_STORAGE_KEY]) kgZfKalenderListeRendern(block);
+      };
+      chrome.storage.onChanged.addListener(listener);
+      kalenderAufraeumen.push(() => chrome.storage.onChanged.removeListener(listener));
+      return;
+    }
     const tbody = container.querySelector(`table[data-zf-index="${i}"] tbody`);
     const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
     const istFix = zf.typ === 'tabelle_fix';
@@ -686,27 +734,42 @@ function kgZeigeZusatzfenster(zfListe, vorlage, chatBereich, bodyEl, zustand) {
     }
   });
 
-  container.querySelector('.kg-zf-abbrechen').addEventListener('click', () => { chatBereich.innerHTML = ''; });
-  container.querySelector('.kg-zf-uebernehmen').addEventListener('click', () => {
+  container.querySelector('.kg-zf-abbrechen').addEventListener('click', () => {
+    kalenderAufraeumen.forEach(fn => fn());
+    chatBereich.innerHTML = '';
+  });
+  container.querySelector('.kg-zf-uebernehmen').addEventListener('click', async () => {
     let text = vorlage.inhalt || '';
     let irgendwasAusgefuellt = false;
-    zfListe.forEach((zf, i) => {
+    for (let i = 0; i < zfListe.length; i++) {
+      const zf = zfListe[i];
+      if (zf.typ === 'kalender') {
+        const daten = await chrome.storage.local.get(KG_KALENDER_STORAGE_KEY);
+        const liste = daten[KG_KALENDER_STORAGE_KEY] || [];
+        if (!liste.length) continue;
+        irgendwasAusgefuellt = true;
+        const terminText = kgAufzaehlungOder(liste.map(e => e.anzeige));
+        text = text.includes(zf.platzhalter) ? text.replace(zf.platzhalter, terminText) : `${text}\n\n${terminText}`;
+        await chrome.storage.local.set({ [KG_KALENDER_STORAGE_KEY]: [] });
+        continue;
+      }
       const tabelle = container.querySelector(`table[data-zf-index="${i}"]`);
       const eintraege = kgZfSammleEintraege(tabelle, zf);
-      if (!eintraege.length) return;
+      if (!eintraege.length) continue;
       irgendwasAusgefuellt = true;
       const liste = eintraege.join('\n');
       text = text.includes(zf.platzhalter) ? text.replace(zf.platzhalter, liste) : `${text}\n\n${liste}`;
-    });
+    }
     if (!irgendwasAusgefuellt) {
       if (!container.querySelector('.kg-zf-hinweis')) {
         const hinweis = document.createElement('div');
         hinweis.className = 'kg-zf-hinweis';
-        hinweis.textContent = 'Bitte mindestens eine Position mit Anzahl grösser 0 ausfüllen.';
+        hinweis.textContent = 'Bitte mindestens eine Position mit Anzahl grösser 0 ausfüllen oder einen Termin aus dem Kalender übernehmen.';
         container.insertBefore(hinweis, container.querySelector('.kg-zf-btns'));
       }
       return;
     }
+    kalenderAufraeumen.forEach(fn => fn());
     zustand.aktuellerEntwurf = text;
     zustand.aktuelleVorlageId = vorlage.id;
     if (vorlage.betreff) zustand.aktuellerBetreff = vorlage.betreff;

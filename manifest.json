@@ -5,7 +5,11 @@
   "description": "KI-Unterstuetzung beim Verfassen und Beantworten von Mails direkt in Gmail.",
   "host_permissions": [
     "https://mail.google.com/*",
+    "https://calendar.google.com/*",
     "https://oalapdxinqlnzwxhyuzy.supabase.co/*"
+  ],
+  "permissions": [
+    "storage"
   ],
   "icons": {
     "16": "icons/icon16.png",
@@ -30,6 +34,15 @@
       ],
       "css": [
         "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://calendar.google.com/*"
+      ],
+      "js": [
+        "calendar.js"
       ],
       "run_at": "document_idle"
     }

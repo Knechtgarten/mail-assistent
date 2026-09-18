@@ -149,6 +149,11 @@
 .kg-zf-btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: 10px; }
 .kg-zf-btns button { border-radius: 12px; padding: 6px 13px; font-size: 11px; font-weight: 700; cursor: pointer; border: 1px solid #E1E5E9; background: #fff; color: #323E4E; }
 .kg-zf-uebernehmen { background: #323E4E !important; color: #fff !important; border-color: #323E4E !important; }
+.kg-zf-kalender-liste { display: flex; gap: 6px; flex-wrap: wrap; }
+.kg-kal-chip { background: #D6E7F4; color: #323E4E; border-radius: 10px; padding: 4px 6px 4px 10px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+.kg-kal-chip-del { cursor: pointer; color: #5b6b7a; }
+.kg-zf-kalender-hinweis { font-size: 11px; color: #8B9097; }
+.kg-zf-kalender-hinweis a { color: #323E4E; }
 
 .kg-followuprow { display: flex; align-items: center; gap: 5px; margin-top: 9px; }
 .kg-followuprow input {
