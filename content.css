@@ -154,6 +154,7 @@
 .kg-kal-chip-del { cursor: pointer; color: #5b6b7a; }
 .kg-zf-kalender-hinweis { font-size: 11px; color: #8B9097; }
 .kg-zf-kalender-hinweis a { color: #323E4E; }
+.kg-zf-kalender-oeffnen { display: block; background: #323E4E; color: #fff; border: none; border-radius: 12px; padding: 6px 12px; font-size: 11.5px; font-weight: 700; cursor: pointer; margin-bottom: 6px; }
 
 .kg-followuprow { display: flex; align-items: center; gap: 5px; margin-top: 9px; }
 .kg-followuprow input {

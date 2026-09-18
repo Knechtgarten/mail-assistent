@@ -622,13 +622,28 @@ function kgZfKalenderBlockHtml(zf, index) {
     <div class="kg-zf-block" data-zf-kalender-index="${index}">
       <div class="kg-zf-titel">${kgEscape(zf.titel)}</div>
       <div class="kg-zf-kalender-liste"></div>
-      <div class="kg-zf-kalender-hinweis">Öffne <a href="https://calendar.google.com" target="_blank" rel="noopener">Google Kalender</a>, klicke auf eine freie Zeit und dann auf „In Mail übernehmen" – die Termine erscheinen hier automatisch.</div>
+      <div class="kg-zf-kalender-hinweis">
+        <button class="kg-zf-kalender-oeffnen" type="button">Google Kalender öffnen</button>
+        Klicke dort auf eine freie Zeit und dann auf „In Mail übernehmen" – die Termine erscheinen hier automatisch. Dein Mail-Entwurf bleibt in diesem Fenster erhalten.
+      </div>
     </div>`;
 }
 function kgKalenderChipHtml(eintrag) {
   return `<span class="kg-kal-chip" data-id="${kgEscape(eintrag.id)}">${kgEscape(eintrag.anzeige)}<span class="kg-kal-chip-del">✕</span></span>`;
 }
+// Kleines eigenstaendiges Fenster statt neuem Tab - laesst sich einfach
+// schliessen/wegklicken, ohne dass man den Gmail-Tab erst wiederfinden muss.
+function kgKalenderOeffnen() {
+  window.open('https://calendar.google.com', 'kg-kalender', 'width=480,height=760,noopener');
+}
 async function kgZfKalenderListeRendern(block) {
+  // Falls die "storage"-Berechtigung (noch) nicht wirksam ist (z.B. nach
+  // einem Update, das nicht vollstaendig neu geladen wurde), verstaendlich
+  // scheitern statt die ganze Seite mit einem Fehler zu blockieren.
+  if (!chrome.storage?.local) {
+    block.querySelector('.kg-zf-kalender-hinweis').textContent = 'Erweiterung bitte komplett neu laden (chrome://extensions → entfernen → neu laden), dann funktioniert die Kalender-Übernahme.';
+    return;
+  }
   const daten = await chrome.storage.local.get(KG_KALENDER_STORAGE_KEY);
   const liste = daten[KG_KALENDER_STORAGE_KEY] || [];
   block.querySelector('.kg-zf-kalender-liste').innerHTML = liste.map(kgKalenderChipHtml).join('');
@@ -698,12 +713,15 @@ function kgZeigeZusatzfenster(zfListe, vorlage, chatBereich, bodyEl, zustand) {
   zfListe.forEach((zf, i) => {
     if (zf.typ === 'kalender') {
       const block = container.querySelector(`[data-zf-kalender-index="${i}"]`);
+      block.querySelector('.kg-zf-kalender-oeffnen').addEventListener('click', kgKalenderOeffnen);
       kgZfKalenderListeRendern(block);
-      const listener = (changes, area) => {
-        if (area === 'local' && changes[KG_KALENDER_STORAGE_KEY]) kgZfKalenderListeRendern(block);
-      };
-      chrome.storage.onChanged.addListener(listener);
-      kalenderAufraeumen.push(() => chrome.storage.onChanged.removeListener(listener));
+      if (chrome.storage?.onChanged) {
+        const listener = (changes, area) => {
+          if (area === 'local' && changes[KG_KALENDER_STORAGE_KEY]) kgZfKalenderListeRendern(block);
+        };
+        chrome.storage.onChanged.addListener(listener);
+        kalenderAufraeumen.push(() => chrome.storage.onChanged.removeListener(listener));
+      }
       return;
     }
     const tbody = container.querySelector(`table[data-zf-index="${i}"] tbody`);
@@ -744,6 +762,7 @@ function kgZeigeZusatzfenster(zfListe, vorlage, chatBereich, bodyEl, zustand) {
     for (let i = 0; i < zfListe.length; i++) {
       const zf = zfListe[i];
       if (zf.typ === 'kalender') {
+        if (!chrome.storage?.local) continue;
         const daten = await chrome.storage.local.get(KG_KALENDER_STORAGE_KEY);
         const liste = daten[KG_KALENDER_STORAGE_KEY] || [];
         if (!liste.length) continue;
