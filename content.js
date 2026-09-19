@@ -988,23 +988,35 @@ function kgAktiviereMikrofon(button, feld) {
   // ein einzelner Satz pro Aufnahme). Mit continuous=true laeuft es weiter,
   // bis man selber auf Stopp klickt (oder laenger gar nichts gesagt wird).
   erkennung.continuous = true;
-  erkennung.interimResults = false;
+  // interimResults=true zeigt Woerter sofort waehrend des Sprechens an (auch
+  // wenn Chrome sie spaeter beim Satzende noch leicht korrigiert), statt erst
+  // auf den fertigen, "endgueltigen" Satz zu warten - das war der Grund fuer
+  // die spuerbare Verzoegerung von mehreren Sekunden/Woertern.
+  erkennung.interimResults = true;
   let laeuft = false;
+  let textVorAufnahme = '';
   button.addEventListener('click', () => { laeuft ? erkennung.stop() : erkennung.start(); });
-  erkennung.addEventListener('start', () => { laeuft = true; button.classList.add('kg-recording'); });
+  erkennung.addEventListener('start', () => {
+    laeuft = true;
+    button.classList.add('kg-recording');
+    textVorAufnahme = feld.value;
+  });
   erkennung.addEventListener('end', () => { laeuft = false; button.classList.remove('kg-recording'); });
   erkennung.addEventListener('error', () => { laeuft = false; button.classList.remove('kg-recording'); });
   erkennung.addEventListener('result', (e) => {
-    // Bei continuous=true liefert jedes "result"-Event unter Umstaenden
-    // mehrere bereits bekannte Saetze erneut mit - nur ab resultIndex sind es
-    // wirklich neue, sonst wuerde sich der Text im Feld verdoppeln.
-    let neuerText = '';
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal) neuerText += (neuerText ? ' ' : '') + e.results[i][0].transcript;
+    // e.results enthaelt die ganze Aufnahme seit dem Start - endgueltige und
+    // noch schwebende ("interim") Teile werden bei jedem Event neu aus allen
+    // bisherigen Ergebnissen zusammengesetzt, damit sich nichts verdoppelt
+    // und ein noch schwebender Teil beim naechsten Event einfach ersetzt wird.
+    let endgueltig = '';
+    let schwebend = '';
+    for (let i = 0; i < e.results.length; i++) {
+      const stueck = e.results[i][0].transcript;
+      if (e.results[i].isFinal) endgueltig += (endgueltig ? ' ' : '') + stueck;
+      else schwebend += (schwebend ? ' ' : '') + stueck;
     }
-    if (neuerText) {
-      feld.value = (feld.value ? feld.value + ' ' : '') + neuerText;
-      feld.dispatchEvent(new Event('input'));
-    }
+    const basis = textVorAufnahme ? textVorAufnahme + ' ' : '';
+    feld.value = basis + [endgueltig, schwebend].filter(Boolean).join(' ');
+    feld.dispatchEvent(new Event('input'));
   });
 }
