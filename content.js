@@ -394,7 +394,7 @@ async function kgStarteAntworten(panel, bodyEl, container, zustand) {
     <div class="kg-row">
       <button class="kg-micbtn" title="Diktieren">${kgSvg(KG_ICON_MIC)}</button>
       <textarea class="kg-textarea" rows="1" placeholder="Optional: eigene Stichworte vor der Generierung … (Enter zum Erstellen)"></textarea>
-      <button class="kg-btn kg-btn-automatisch">Automatisch</button>
+      <button class="kg-btn kg-btn-automatisch">Generieren</button>
     </div>
     <div class="kg-chat-bereich"></div>`;
   const chatBereich = scroll.querySelector('.kg-chat-bereich');
