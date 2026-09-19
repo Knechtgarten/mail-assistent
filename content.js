@@ -382,16 +382,44 @@ function kgHoleAbsenderEmail(bodyEl) {
   return null;
 }
 
+// Vor der automatischen Generierung ein kurzer Zwischenschritt: entweder
+// direkt "Automatisch generieren" klicken (wie bisher), oder vorher ein
+// paar Stichworte/eine Anweisung eingeben oder diktieren, die dann in den
+// ersten Entwurf einfliessen.
 async function kgStarteAntworten(panel, bodyEl, container, zustand) {
   const scroll = panel.querySelector('.kg-scroll');
-  scroll.innerHTML = '<div class="kg-chat-bereich"><div class="kg-lade">Lese Mail und erstelle Entwurf …</div></div>';
+  scroll.innerHTML = `
+    <div class="kg-row">
+      <button class="kg-micbtn" title="Diktieren">${kgSvg(KG_ICON_MIC)}</button>
+      <textarea class="kg-textarea" rows="1" placeholder="Optional: eigene Stichworte vor der Generierung … (Enter zum Erstellen)"></textarea>
+    </div>
+    <button class="kg-btn kg-btn-automatisch">Automatisch generieren</button>
+    <div class="kg-chat-bereich"></div>`;
   const chatBereich = scroll.querySelector('.kg-chat-bereich');
+  const textarea = scroll.querySelector('.kg-textarea');
+  kgSchuetzeFokus(textarea);
+  kgAktiviereMikrofon(scroll.querySelector('.kg-micbtn'), textarea);
+
+  const generiere = (stichworte) => kgAntwortenGenerieren(chatBereich, bodyEl, container, zustand, stichworte);
+
+  scroll.querySelector('.kg-btn-automatisch').addEventListener('click', () => generiere(undefined));
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const text = textarea.value.trim();
+      generiere(text || undefined);
+    }
+  });
+}
+
+async function kgAntwortenGenerieren(chatBereich, bodyEl, container, zustand, stichworte) {
+  chatBereich.innerHTML = '<div class="kg-lade">Lese Mail und erstelle Entwurf …</div>';
   zustand.mailInhalt = kgHoleMailInhalt(bodyEl, container);
   const absender = kgHoleAbsenderEmail(bodyEl);
   const istIntern = !!absender && absender.toLowerCase().endsWith('@knechtgarten.ch');
 
   try {
-    const data = await kgRufeApiAuf({ modus: 'antworten', mailInhalt: zustand.mailInhalt, intern: istIntern, mitarbeiterEmail: kgHoleMitarbeiterEmail() });
+    const data = await kgRufeApiAuf({ modus: 'antworten', mailInhalt: zustand.mailInhalt, intern: istIntern, mitarbeiterEmail: kgHoleMitarbeiterEmail(), stichworte });
     chatBereich.innerHTML = '';
     if (data.aktion === 'entwurf') {
       zustand.aktuellerEntwurf = data.text;
