@@ -392,8 +392,8 @@ async function kgStarteAntworten(panel, bodyEl, container, zustand) {
     <div class="kg-row">
       <button class="kg-micbtn" title="Diktieren">${kgSvg(KG_ICON_MIC)}</button>
       <textarea class="kg-textarea" rows="1" placeholder="Optional: eigene Stichworte vor der Generierung … (Enter zum Erstellen)"></textarea>
+      <button class="kg-btn kg-btn-automatisch">Automatisch</button>
     </div>
-    <button class="kg-btn kg-btn-automatisch">Automatisch generieren</button>
     <div class="kg-chat-bereich"></div>`;
   const chatBereich = scroll.querySelector('.kg-chat-bereich');
   const textarea = scroll.querySelector('.kg-textarea');
@@ -961,6 +961,11 @@ function kgAktiviereMikrofon(button, feld) {
   if (!SpeechRecognition) { button.style.display = 'none'; return; }
   const erkennung = new SpeechRecognition();
   erkennung.lang = 'de-CH';
+  // Ohne "continuous" schaltet Chrome das Mikrofon automatisch aus, sobald
+  // nach dem ersten Satz eine kurze Sprechpause erkannt wird (Standard: nur
+  // ein einzelner Satz pro Aufnahme). Mit continuous=true laeuft es weiter,
+  // bis man selber auf Stopp klickt (oder laenger gar nichts gesagt wird).
+  erkennung.continuous = true;
   erkennung.interimResults = false;
   let laeuft = false;
   button.addEventListener('click', () => { laeuft ? erkennung.stop() : erkennung.start(); });
@@ -968,7 +973,13 @@ function kgAktiviereMikrofon(button, feld) {
   erkennung.addEventListener('end', () => { laeuft = false; button.classList.remove('kg-recording'); });
   erkennung.addEventListener('error', () => { laeuft = false; button.classList.remove('kg-recording'); });
   erkennung.addEventListener('result', (e) => {
-    const text = Array.from(e.results).map(r => r[0].transcript).join(' ');
-    feld.value = (feld.value ? feld.value + ' ' : '') + text;
+    // Bei continuous=true liefert jedes "result"-Event unter Umstaenden
+    // mehrere bereits bekannte Saetze erneut mit - nur ab resultIndex sind es
+    // wirklich neue, sonst wuerde sich der Text im Feld verdoppeln.
+    let neuerText = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) neuerText += (neuerText ? ' ' : '') + e.results[i][0].transcript;
+    }
+    if (neuerText) feld.value = (feld.value ? feld.value + ' ' : '') + neuerText;
   });
 }

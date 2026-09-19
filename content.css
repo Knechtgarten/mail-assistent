@@ -84,8 +84,6 @@
 .kg-micbtn.kg-recording { background: #B4655F; border-color: #B4655F; color: #fff; }
 .kg-micbtn svg { width: 13px; height: 13px; }
 
-.kg-btn-automatisch { margin-top: 8px; width: 100%; justify-content: center; }
-
 .kg-chat { margin-top: 9px; padding-top: 9px; border-top: 1px solid #E1E5E9; }
 .kg-chat-first { margin-top: 0; padding-top: 0; border-top: none; }
 .kg-quickchips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 9px; }
