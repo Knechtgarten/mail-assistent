@@ -265,6 +265,7 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
   const chatBereich = scroll.querySelector('.kg-chat-bereich');
   const textarea = scroll.querySelector('.kg-textarea');
   kgSchuetzeFokus(textarea);
+  kgAutoWachsen(textarea);
   kgVerdrahteAnredeChips(scroll.querySelector('.kg-anrede-chips'), chatBereich, bodyEl, zustand);
   kgAktualisiereAnredeChips(zustand);
 
@@ -340,6 +341,7 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
         kgGeneriere({ modus: 'verfassen', stichworte: [text, anredeUeberschreibung].filter(Boolean).join('\n') }, chatBereich, bodyEl, zustand, text);
       }
       textarea.value = '';
+      textarea.dispatchEvent(new Event('input'));
     }
   });
   kgAktiviereMikrofon(scroll.querySelector('.kg-micbtn'), textarea);
@@ -398,11 +400,15 @@ async function kgStarteAntworten(panel, bodyEl, container, zustand) {
   const chatBereich = scroll.querySelector('.kg-chat-bereich');
   const textarea = scroll.querySelector('.kg-textarea');
   kgSchuetzeFokus(textarea);
+  kgAutoWachsen(textarea);
   kgAktiviereMikrofon(scroll.querySelector('.kg-micbtn'), textarea);
 
   const generiere = (stichworte) => kgAntwortenGenerieren(chatBereich, bodyEl, container, zustand, stichworte);
 
-  scroll.querySelector('.kg-btn-automatisch').addEventListener('click', () => generiere(undefined));
+  // "Automatisch" heisst nur "kein Eingeben zwingend noetig" - ist trotzdem
+  // schon etwas im Feld (z.B. durch Diktieren), soll das nicht verworfen
+  // werden, sondern ganz genauso mit einfliessen wie bei Enter.
+  scroll.querySelector('.kg-btn-automatisch').addEventListener('click', () => generiere(textarea.value.trim() || undefined));
   textarea.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -954,6 +960,22 @@ function kgSchuetzeFokus(el) {
 }
 
 // ----------------------------------------------------------------------------
+// Textarea waechst mit dem Text mit (bis zu einer Obergrenze, danach eigener
+// Scrollbalken) - sonst wird laengerer/diktierter Text im kleinen Einzeiler
+// abgeschnitten. Reagiert auch auf programmatisch gesetzten Text (z.B. vom
+// Mikrofon), weil kgAktiviereMikrofon nach jedem Ergebnis ein "input"-Event
+// ausloest.
+// ----------------------------------------------------------------------------
+function kgAutoWachsen(textarea) {
+  const anpassen = () => {
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+  };
+  textarea.addEventListener('input', anpassen);
+  anpassen();
+}
+
+// ----------------------------------------------------------------------------
 // Mikrofon (Web Speech API) - diktiert direkt ins uebergebene Feld.
 // ----------------------------------------------------------------------------
 function kgAktiviereMikrofon(button, feld) {
@@ -980,6 +1002,9 @@ function kgAktiviereMikrofon(button, feld) {
     for (let i = e.resultIndex; i < e.results.length; i++) {
       if (e.results[i].isFinal) neuerText += (neuerText ? ' ' : '') + e.results[i][0].transcript;
     }
-    if (neuerText) feld.value = (feld.value ? feld.value + ' ' : '') + neuerText;
+    if (neuerText) {
+      feld.value = (feld.value ? feld.value + ' ' : '') + neuerText;
+      feld.dispatchEvent(new Event('input'));
+    }
   });
 }

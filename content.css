@@ -74,6 +74,7 @@
 .kg-textarea {
   flex: 1; min-width: 0; border: 1px solid #E1E5E9; border-radius: 14px; padding: 8px 12px;
   font: inherit; font-size: 12px; line-height: 1.4; resize: none; background: #fff; color: #232B35;
+  overflow-y: auto; max-height: 220px;
 }
 .kg-textarea:focus { outline: none; border-color: #323E4E; }
 .kg-micbtn {
