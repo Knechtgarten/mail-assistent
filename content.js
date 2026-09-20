@@ -637,6 +637,7 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
       <div class="kg-ka-info-tabelle">
         ${data.distanz?.eigene ? `<span class="kg-ka-info-name kg-ka-info-eigene-name">Knechtgarten</span><span class="kg-ka-info-wert kg-ka-info-eigene-wert">${data.distanz.eigene.km} km · ${data.distanz.eigene.minuten} Min</span><span></span>` : ''}
         ${data.distanz?.eigene && partnerListe.length ? '<span class="kg-ka-info-trenner"></span>' : ''}
+        ${data.distanzErklaerung ? `<div class="kg-ka-info-erklaerung">${kgMarkdownZuHtml(data.distanzErklaerung)}</div>` : ''}
         ${partnerListe.map(partnerZeileHtml).join('')}
       </div>
       ${data.hinweistext ? `<div class="kg-ka-info-hinweis">${kgMarkdownZuHtml(data.hinweistext)}</div>` : ''}

@@ -251,6 +251,7 @@
 .kg-ka-info-name { opacity: .7; white-space: nowrap; }
 .kg-ka-info-wert { color: rgba(255,255,255,.7); font-weight: 600; white-space: nowrap; }
 .kg-ka-info-wert.kg-ka-info-naeher, .kg-ka-info-eigene-wert { color: #D1DB5F; }
+.kg-ka-info-erklaerung { grid-column: 1 / -1; font-size: 10.5px; line-height: 1.4; color: rgba(255,255,255,.6); white-space: normal; margin: -2px 0 1px; }
 /* Kompakter Weiterleiten-Button direkt hinter der Distanz eines Partner-
    betriebs - bewusst sehr klein, damit die Zeile nicht aufgeblaeht wird. */
 .kg-ka-weiterleiten-btn {
