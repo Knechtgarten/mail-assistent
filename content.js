@@ -399,13 +399,12 @@ async function kgStarteAntworten(panel, bodyEl, container, zustand) {
       <button class="kg-btn kg-btn-automatisch">Generieren</button>
     </div>
     <div class="kg-chat-bereich"></div>`;
-  const chatBereich = scroll.querySelector('.kg-chat-bereich');
   const textarea = scroll.querySelector('.kg-textarea');
   kgSchuetzeFokus(textarea);
   kgAutoWachsen(textarea);
   kgAktiviereMikrofon(scroll.querySelector('.kg-micbtn'), textarea);
 
-  const generiere = (stichworte) => kgAntwortenGenerieren(chatBereich, bodyEl, container, zustand, stichworte);
+  const generiere = (stichworte) => kgAntwortenStarten(scroll, bodyEl, container, zustand, stichworte);
 
   // "Automatisch" heisst nur "kein Eingeben zwingend noetig" - ist trotzdem
   // schon etwas im Feld (z.B. durch Diktieren), soll das nicht verworfen
@@ -420,45 +419,68 @@ async function kgStarteAntworten(panel, bodyEl, container, zustand) {
   });
 }
 
-async function kgAntwortenGenerieren(chatBereich, bodyEl, container, zustand, stichworte) {
-  // Die Eingabezeile (Mikrofon/Stichworte/Generieren) bleibt bewusst sichtbar
-  // waehrend die KI im Hintergrund arbeitet - nur waehrend der Wartezeit
-  // gesperrt, damit nicht doppelt losgeschickt wird. Erst wenn wirklich ein
-  // Ergebnis da ist, wird sie durch den Entwurf/die Rueckfrage ersetzt.
-  const eingabeRow = chatBereich.previousElementSibling;
-  const btn = eingabeRow?.querySelector('.kg-btn-automatisch');
-  const textarea = eingabeRow?.querySelector('.kg-textarea');
-  if (btn) btn.disabled = true;
-  if (textarea) textarea.disabled = true;
+// Dunkles Zwischen-Popup (bewusst gleiche Farbe wie der Mail-Assistent-
+// Button): zeigt zuerst "am Ueberlegen", dann entweder automatisch den
+// fertigen Entwurf (Popup verschwindet, Mail-Fenster oeffnet sich direkt)
+// oder - falls die KI eine Rueckfrage braucht - Frage + Antworten
+// uebereinander, weiterhin im selben dunklen Popup ("noch nicht im Mail
+// drin"). Erst nach der Wahl oeffnet sich das normale (helle) Mail-Fenster.
+async function kgAntwortenStarten(scroll, bodyEl, container, zustand, stichworte) {
+  scroll.innerHTML = `
+    <div class="kg-dunkel-popup">
+      <div class="kg-dunkel-spinner"></div>
+      <div class="kg-dunkel-text">Einen Moment, ich bereite die Antwort vor …</div>
+    </div>`;
+  const popup = scroll.querySelector('.kg-dunkel-popup');
 
-  chatBereich.innerHTML = '<div class="kg-lade">Lese Mail und erstelle Entwurf …</div>';
   zustand.mailInhalt = kgHoleMailInhalt(bodyEl, container);
   const absender = kgHoleAbsenderEmail(bodyEl);
   const istIntern = !!absender && absender.toLowerCase().endsWith('@knechtgarten.ch');
 
   try {
     const data = await kgRufeApiAuf({ modus: 'antworten', mailInhalt: zustand.mailInhalt, intern: istIntern, mitarbeiterEmail: kgHoleMitarbeiterEmail(), stichworte });
-    chatBereich.innerHTML = '';
-    if (data.aktion === 'entwurf') {
-      zustand.aktuellerEntwurf = data.text;
-      zustand.aktuelleVorlageId = data.vorlageId || null;
-      if (data.zusatzfenster?.length) {
-        // Die passende Vorlage hat z.B. einen Kalender-Baustein zugewiesen -
-        // erst die strukturierte Eingabe (echte Termine waehlen usw.) zeigen,
-        // die den/die Platzhalter im schon generierten Entwurf ersetzt.
-        kgZeigeZusatzfenster(data.zusatzfenster, data.text, chatBereich, bodyEl, zustand, { vorlageId: data.vorlageId });
-      } else {
-        kgZeigeEntwurf(chatBereich, bodyEl, zustand);
-      }
-      eingabeRow?.remove();
-    } else if (data.aktion === 'rueckfrage') {
-      kgZeigeRueckfrage(chatBereich, data, bodyEl, zustand);
-      eingabeRow?.remove();
+    if (data.aktion === 'rueckfrage') {
+      kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand);
+    } else {
+      kgZeigeAntwortenErgebnis(scroll, bodyEl, zustand, data);
     }
   } catch (e) {
-    chatBereich.innerHTML = `<div class="kg-lade" style="color:#B4655F;">Fehler: ${kgEscape(e.message)}</div>`;
-    if (btn) btn.disabled = false;
-    if (textarea) textarea.disabled = false;
+    popup.innerHTML = `<div class="kg-dunkel-text">Fehler: ${kgEscape(e.message)}</div>`;
+  }
+}
+
+function kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand) {
+  popup.innerHTML = `
+    <div class="kg-dunkel-frage">${kgEscape(data.frage)}</div>
+    <div class="kg-dunkel-antworten">${data.antworten.map(a => `<button type="button" class="kg-dunkel-antwort" data-label="${kgEscape(a.label)}">${kgEscape(a.label)}</button>`).join('')}</div>`;
+  popup.querySelectorAll('.kg-dunkel-antwort').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      popup.innerHTML = `<div class="kg-dunkel-spinner"></div><div class="kg-dunkel-text">Einen Moment, ich bereite die Antwort vor …</div>`;
+      try {
+        const ergebnis = await kgRufeApiAuf({ modus: 'rueckfrage-antwort', vorlageId: data.vorlageId, antwortLabel: btn.dataset.label, mailInhalt: zustand.mailInhalt, mitarbeiterEmail: kgHoleMitarbeiterEmail() });
+        zustand.aktuelleVorlageId = data.vorlageId;
+        kgZeigeAntwortenErgebnis(scroll, bodyEl, zustand, ergebnis);
+      } catch (e) {
+        popup.innerHTML = `<div class="kg-dunkel-text">Fehler: ${kgEscape(e.message)}</div>`;
+      }
+    });
+  });
+}
+
+// Wechselt vom dunklen Popup ins normale (helle) Mail-Fenster mit dem
+// fertigen Entwurf - ab hier wie gewohnt (Nachbessern, Anrede, usw.).
+function kgZeigeAntwortenErgebnis(scroll, bodyEl, zustand, data) {
+  scroll.innerHTML = '<div class="kg-chat-bereich"></div>';
+  const chatBereich = scroll.querySelector('.kg-chat-bereich');
+  zustand.aktuellerEntwurf = data.text;
+  zustand.aktuelleVorlageId = data.vorlageId || zustand.aktuelleVorlageId || null;
+  if (data.zusatzfenster?.length) {
+    // Die passende Vorlage hat z.B. einen Kalender-Baustein zugewiesen -
+    // erst die strukturierte Eingabe (echte Termine waehlen usw.) zeigen,
+    // die den/die Platzhalter im schon generierten Entwurf ersetzt.
+    kgZeigeZusatzfenster(data.zusatzfenster, data.text, chatBereich, bodyEl, zustand, { vorlageId: data.vorlageId });
+  } else {
+    kgZeigeEntwurf(chatBereich, bodyEl, zustand);
   }
 }
 
