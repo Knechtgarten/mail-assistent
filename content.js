@@ -615,7 +615,7 @@ async function kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungF
   }
 }
 function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
-  const zeigeInfo = !!(data.distanz || data.hinweistext);
+  const zeigeInfo = !!(data.distanz || data.hinweistext || data.kundenStandort);
   const partnerListe = data.distanz?.partner || [];
   // Von den Partnerbetrieben nur der naechstgelegene wird gruen hervorgehoben
   // (Entscheidungshilfe: "der hier waere am naechsten") - die anderen bleiben
@@ -633,6 +633,7 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   const infoHtml = zeigeInfo ? `
     <div class="kg-ka-info">
       <div class="kg-ka-info-label">Distanz</div>
+      ${data.kundenStandort ? `<div class="kg-ka-info-standort">${kgEscape(data.kundenStandort)}</div>` : ''}
       <div class="kg-ka-info-tabelle">
         ${data.distanz?.eigene ? `<span class="kg-ka-info-name kg-ka-info-eigene-name">Knechtgarten</span><span class="kg-ka-info-wert kg-ka-info-eigene-wert">${data.distanz.eigene.km} km · ${data.distanz.eigene.minuten} Min</span><span></span>` : ''}
         ${data.distanz?.eigene && partnerListe.length ? '<span class="kg-ka-info-trenner"></span>' : ''}

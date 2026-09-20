@@ -243,6 +243,7 @@
 .kg-ka-btn:hover { background: rgba(255,255,255,.22); }
 .kg-ka-info { border-left: 1px solid rgba(255,255,255,.25); padding-left: 14px; }
 .kg-ka-info-label { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: rgba(255,255,255,.6); margin-bottom: 6px; }
+.kg-ka-info-standort { font-size: 12px; font-weight: 700; color: #fff; margin: -3px 0 8px; }
 /* Grid statt einzelner Zeilen-Divs: Spalte 1 (Name) wird automatisch auf die
    Breite des laengsten Namens gesetzt, Spalte 2 (Distanz) faengt bei allen
    Zeilen an der gleichen Stelle an - kein manuelles Ausrichten noetig. */
