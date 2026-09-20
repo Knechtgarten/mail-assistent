@@ -944,15 +944,23 @@ function kgZusatzfensterVon(vorlage) {
 }
 // Definierte Position: Dropdown (typ='dropdown'), Zahlenfeld (typ='zahl')
 // oder freies Textfeld (typ='text'), wie in der Verwaltung konfiguriert.
+// Breite kommt in ungefaehren Zeichen aus der Verwaltung - als CSS
+// "ch"-Einheit direkt auf das Feld angewendet (max-width:none, damit die
+// allgemeine Tabellen-CSS-Obergrenze eine bewusst breiter gewaehlte Spalte
+// nicht wieder einschraenkt).
+function kgZfSpalteBreiteStyle(s) {
+  return s.breite ? ` style="width:${s.breite}ch;max-width:none;"` : '';
+}
 function kgZfSpalteFeldHtml(s) {
+  const breiteStyle = kgZfSpalteBreiteStyle(s);
   if (s.typ === 'zahl') {
-    return `<td><input type="number" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}">${s.einheit ? ` <span class="kg-zf-einheit">${kgEscape(s.einheit)}</span>` : ''}</td>`;
+    return `<td><input type="number" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}"${breiteStyle}>${s.einheit ? ` <span class="kg-zf-einheit">${kgEscape(s.einheit)}</span>` : ''}</td>`;
   }
   if (s.typ === 'text') {
-    return `<td><input type="text" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}"></td>`;
+    return `<td><input type="text" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}"${breiteStyle}></td>`;
   }
   const optionen = (s.mailassistent_zusatzfenster_spalte_option || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
-  return `<td><select class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}">
+  return `<td><select class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}"${breiteStyle}>
     <option value=""></option>
     ${optionen.map(o => `<option value="${kgEscape(o.wert)}">${kgEscape(o.wert)}</option>`).join('')}
   </select></td>`;
@@ -965,7 +973,7 @@ function kgZfEigeneZeileHtml(spalten) {
     <tr class="kg-zf-zeile kg-zf-eigene-zeile" data-position="">
       <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
       <td><input type="text" class="kg-zf-eigenname" placeholder="Eigene Position"></td>
-      ${spalten.map(s => `<td><input type="text" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}" placeholder="frei"></td>`).join('')}
+      ${spalten.map(s => `<td><input type="text" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}" placeholder="frei"${kgZfSpalteBreiteStyle(s)}></td>`).join('')}
     </tr>`;
 }
 function kgZfZeileAusHtml(html) {
