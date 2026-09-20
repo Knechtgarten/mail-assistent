@@ -419,6 +419,16 @@ async function kgStarteAntworten(panel, bodyEl, container, zustand) {
 }
 
 async function kgAntwortenGenerieren(chatBereich, bodyEl, container, zustand, stichworte) {
+  // Die Eingabezeile (Mikrofon/Stichworte/Generieren) bleibt bewusst sichtbar
+  // waehrend die KI im Hintergrund arbeitet - nur waehrend der Wartezeit
+  // gesperrt, damit nicht doppelt losgeschickt wird. Erst wenn wirklich ein
+  // Ergebnis da ist, wird sie durch den Entwurf/die Rueckfrage ersetzt.
+  const eingabeRow = chatBereich.previousElementSibling;
+  const btn = eingabeRow?.querySelector('.kg-btn-automatisch');
+  const textarea = eingabeRow?.querySelector('.kg-textarea');
+  if (btn) btn.disabled = true;
+  if (textarea) textarea.disabled = true;
+
   chatBereich.innerHTML = '<div class="kg-lade">Lese Mail und erstelle Entwurf …</div>';
   zustand.mailInhalt = kgHoleMailInhalt(bodyEl, container);
   const absender = kgHoleAbsenderEmail(bodyEl);
@@ -430,11 +440,15 @@ async function kgAntwortenGenerieren(chatBereich, bodyEl, container, zustand, st
     if (data.aktion === 'entwurf') {
       zustand.aktuellerEntwurf = data.text;
       kgZeigeEntwurf(chatBereich, bodyEl, zustand);
+      eingabeRow?.remove();
     } else if (data.aktion === 'rueckfrage') {
       kgZeigeRueckfrage(chatBereich, data, bodyEl, zustand);
+      eingabeRow?.remove();
     }
   } catch (e) {
     chatBereich.innerHTML = `<div class="kg-lade" style="color:#B4655F;">Fehler: ${kgEscape(e.message)}</div>`;
+    if (btn) btn.disabled = false;
+    if (textarea) textarea.disabled = false;
   }
 }
 

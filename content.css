@@ -19,6 +19,7 @@
 .kg-btn:hover { background: #4C5C70; }
 .kg-btn svg { width: 13px; height: 13px; stroke: #D1DB5F; flex-shrink: 0; }
 .kg-btn.kg-on { background: #4C5C70; }
+.kg-btn:disabled, .kg-textarea:disabled { opacity: .5; cursor: default; }
 
 .kg-panel, .kg-panel * { box-sizing: border-box; }
 .kg-panel {
