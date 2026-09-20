@@ -635,7 +635,7 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
       <div class="kg-ka-info-label">Distanz</div>
       ${data.kundenStandort ? `<div class="kg-ka-info-standort">${kgEscape(data.kundenStandort)}</div>` : ''}
       <div class="kg-ka-info-tabelle">
-        ${data.distanz?.eigene ? `<span class="kg-ka-info-name kg-ka-info-eigene-name">Knechtgarten</span><span class="kg-ka-info-wert kg-ka-info-eigene-wert">${data.distanz.eigene.km} km · ${data.distanz.eigene.minuten} Min</span><span></span>` : ''}
+        ${data.distanz?.eigene ? `<span class="kg-ka-info-name kg-ka-info-eigene-name">Knechtgarten</span><span class="kg-ka-info-wert kg-ka-info-eigene-wert">${data.distanz.eigene.km} km · ${data.distanz.eigene.minuten} Min</span>${data.eigeneAbsageText ? '<button type="button" class="kg-ka-weiterleiten-btn kg-ka-info-naeher kg-ka-absagen-btn" title="Absage wegen zu grosser Distanz erstellen">Absagen</button>' : '<span></span>'}` : ''}
         ${data.distanz?.eigene && partnerListe.length ? '<span class="kg-ka-info-trenner"></span>' : ''}
         ${data.distanzErklaerung ? `<div class="kg-ka-info-erklaerung">${kgMarkdownZuHtml(data.distanzErklaerung)}</div>` : ''}
         ${partnerListe.map(partnerZeileHtml).join('')}
@@ -656,11 +656,15 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
       kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { vorlageId: btn.dataset.id }, antwortInfo?.zusatzfenster);
     });
   });
-  popup.querySelectorAll('.kg-ka-weiterleiten-btn').forEach(btn => {
+  popup.querySelectorAll('.kg-ka-weiterleiten-btn:not(.kg-ka-absagen-btn)').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { partnerbetriebId: btn.dataset.partnerId }, undefined);
     });
+  });
+  popup.querySelector('.kg-ka-absagen-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { eigeneAbsage: true }, undefined);
   });
 }
 
