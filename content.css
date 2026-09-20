@@ -214,13 +214,14 @@
 }
 .kg-dunkel-weiter:hover { background: #D6E7F4; }
 
-/* Klickbarer Datums-Platzhalter (z.B. "[Datum]") im fertigen Entwurf, plus
-   das kleine Auswahlfenster, das beim Klick erscheint. */
-.kg-datum-platzhalter {
+/* Klickbarer Platzhalter (z.B. "[Datum]" oder von der KI ausgefuellt als
+   "[[Wert]]") im fertigen Entwurf, plus das kleine Auswahlfenster, das beim
+   Klick erscheint. */
+.kg-platzhalter-btn {
   cursor: pointer; display: inline-block; background: #323E4E; color: #fff; border-radius: 10px;
   padding: 1px 9px; font-weight: 400;
 }
-.kg-datum-platzhalter:hover { background: #4C5C70; }
+.kg-platzhalter-btn:hover { background: #4C5C70; }
 .kg-datum-popover {
   position: fixed; z-index: 999999; background: #fff; border: 1px solid #E1E5E9; border-radius: 10px;
   box-shadow: 0 6px 20px rgba(35,43,53,.18); padding: 10px; min-width: 220px; max-width: 320px;

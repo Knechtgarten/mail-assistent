@@ -574,24 +574,36 @@ async function kgLadeNachbesserButtons(container, onClick) {
 }
 
 // ----------------------------------------------------------------------------
-// Datums-Platzhalter (z.B. "[Datum]", "[Datum, Uhrzeit]") im fertigen Entwurf
-// klickbar machen - egal ob aus einer Vorlage oder frei von der KI erfunden.
-// Klick oeffnet ein kleines Auswahlfenster: entweder ein einzelnes Datum
-// eintragen (sofort, ohne KI-Aufruf) oder mehrere Termine aus dem Google-
-// Kalender vorschlagen (dann wird bei 2+ Terminen der umliegende Satz per
-// kurzem, eng eingegrenztem Nachbessern-Aufruf sprachlich passend gemacht).
+// Platzhalter im fertigen Entwurf klickbar machen - egal ob aus einer Vorlage
+// oder frei von der KI erfunden. Zwei Formen (siehe Backend-Prompt):
+//   [Name]     - noch leer/unausgefuellt, Button zeigt den Platzhalter-Namen
+//   [[Wert]]   - die KI hat selbst einen Wert eingesetzt, Button zeigt den
+//                Wert direkt (ohne Klammern) und bleibt trotzdem klickbar/
+//                aenderbar, damit sichtbar bleibt, wo die KI etwas ergaenzt
+//                hat.
+// [ZF:...] wird bewusst NICHT erfasst (eigener, komplexerer Zusatzfenster-
+// Mechanismus). Enthaelt ein noch leerer Platzhalter das Wort "Datum",
+// oeffnet der Klick das spezielle Datums-/Kalender-Popover, sonst ein
+// einfaches Popover mit einem einzelnen Textfeld.
 // ----------------------------------------------------------------------------
-const KG_DATUM_PLATZHALTER_REGEX = /\[([^\]<>]*Datum[^\]<>]*)\]/gi;
+const KG_PLATZHALTER_REGEX = /\[\[([^[\]<>]+)\]\]|\[(?!ZF:)([^[\]<>]+)\]/g;
 
-function kgVerlinkeDatumPlatzhalter(html) {
+function kgVerlinkePlatzhalter(html) {
   let i = 0;
-  return html.replace(KG_DATUM_PLATZHALTER_REGEX, (match) => `<span class="kg-datum-platzhalter" data-slot="${i++}">${match}</span>`);
+  return html.replace(KG_PLATZHALTER_REGEX, (match, gefuellt, leer) => {
+    const slot = i++;
+    if (gefuellt !== undefined) {
+      return `<span class="kg-platzhalter-btn" data-slot="${slot}" data-art="gefuellt">${gefuellt}</span>`;
+    }
+    const art = /datum/i.test(leer) ? 'datum' : 'leer';
+    return `<span class="kg-platzhalter-btn" data-slot="${slot}" data-art="${art}">${match}</span>`;
+  });
 }
 // Position des n-ten Platzhalters im ROHEN Text (nicht im HTML) - Reihenfolge
 // ist identisch, da kgEscape keine Klammern veraendert und daher weder
 // Anzahl noch Reihenfolge der Treffer verschiebt.
-function kgDatumPlatzhalterPosition(text, slot) {
-  const regex = new RegExp(KG_DATUM_PLATZHALTER_REGEX.source, 'gi');
+function kgPlatzhalterPosition(text, slot) {
+  const regex = new RegExp(KG_PLATZHALTER_REGEX.source, 'g');
   let match, i = 0;
   while ((match = regex.exec(text))) {
     if (i === slot) return { start: match.index, end: match.index + match[0].length };
@@ -631,11 +643,14 @@ function kgOeffneDatumPopover(span, dieserText, chatBereich, bodyEl, zustand) {
   const ausserhalbKlick = (e) => { if (!popover.contains(e.target)) schliessen(); };
   setTimeout(() => document.addEventListener('mousedown', ausserhalbKlick, true), 0);
 
+  // Ergebnis in doppelte eckige Klammern schreiben (nicht als reinen Text) -
+  // so bleibt der eingetragene Termin weiterhin ein Button und laesst sich
+  // spaeter per Klick nochmals aendern, statt endgueltig fixer Text zu sein.
   const ersetzeImText = (ersatz, label) => {
-    const pos = kgDatumPlatzhalterPosition(dieserText, slot);
+    const pos = kgPlatzhalterPosition(dieserText, slot);
     schliessen();
     if (!pos) return;
-    zustand.aktuellerEntwurf = dieserText.slice(0, pos.start) + ersatz + dieserText.slice(pos.end);
+    zustand.aktuellerEntwurf = dieserText.slice(0, pos.start) + `[[${ersatz}]]` + dieserText.slice(pos.end);
     kgZeigeEntwurf(chatBereich, bodyEl, zustand, label);
   };
 
@@ -690,7 +705,7 @@ function kgOeffneDatumPopover(span, dieserText, chatBereich, bodyEl, zustand) {
       // Mehrere Termine: erst grob als Liste einsetzen, dann den umliegenden
       // Satz per eng eingegrenzter Nachbessern-Anweisung sprachlich passend
       // machen lassen - der Rest des Texts darf sich dabei nicht aendern.
-      const pos = kgDatumPlatzhalterPosition(dieserText, slot);
+      const pos = kgPlatzhalterPosition(dieserText, slot);
       schliessen();
       if (!pos) return;
       const platzhalterText = dieserText.slice(pos.start, pos.end);
@@ -700,6 +715,43 @@ function kgOeffneDatumPopover(span, dieserText, chatBereich, bodyEl, zustand) {
       kgGeneriere({ modus: 'nachbessern', aktuellerEntwurf: zwischenText, anweisung, vorlageId: zustand.aktuelleVorlageId }, chatBereich, bodyEl, zustand, `${liste.length} Termine vorgeschlagen`);
     });
   });
+}
+
+// Einfaches Popover fuer alle Platzhalter ausser Datum: ein Textfeld, Wert
+// eintragen, ersetzt den Platzhalter direkt (in doppelten Klammern, bleibt
+// also weiterhin klickbar/aenderbar). aktuellerWert ist vorbefuellt, falls
+// die KI hier schon selbst etwas eingesetzt hatte.
+function kgOeffneEinfachesPlatzhalterPopover(span, dieserText, chatBereich, bodyEl, zustand, aktuellerWert) {
+  document.querySelectorAll('.kg-datum-popover').forEach(p => p.remove());
+  const slot = parseInt(span.dataset.slot, 10);
+  const popover = document.createElement('div');
+  popover.className = 'kg-datum-popover';
+  popover.innerHTML = `
+    <input type="text" class="kg-datum-input" value="${kgEscape(aktuellerWert || '')}" placeholder="Wert eintragen …">
+    <button type="button" class="kg-btn" style="margin-top:8px;width:100%;justify-content:center;">Übernehmen</button>`;
+  document.body.appendChild(popover);
+  const rect = span.getBoundingClientRect();
+  popover.style.top = Math.round(rect.bottom + 4) + 'px';
+  popover.style.left = Math.round(rect.left) + 'px';
+
+  const schliessen = () => { popover.remove(); document.removeEventListener('mousedown', ausserhalbKlick, true); };
+  const ausserhalbKlick = (e) => { if (!popover.contains(e.target)) schliessen(); };
+  setTimeout(() => document.addEventListener('mousedown', ausserhalbKlick, true), 0);
+
+  const input = popover.querySelector('.kg-datum-input');
+  input.focus();
+  input.select();
+
+  const uebernehmen = () => {
+    const wert = input.value.trim();
+    const pos = kgPlatzhalterPosition(dieserText, slot);
+    schliessen();
+    if (!pos || !wert) return;
+    zustand.aktuellerEntwurf = dieserText.slice(0, pos.start) + `[[${wert}]]` + dieserText.slice(pos.end);
+    kgZeigeEntwurf(chatBereich, bodyEl, zustand, `Eingetragen: ${wert}`);
+  };
+  popover.querySelector('.kg-btn').addEventListener('click', uebernehmen);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); uebernehmen(); } });
 }
 
 function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
@@ -765,7 +817,7 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
   const dieserText = zustand.aktuellerEntwurf;
   const aiDiv = document.createElement('div');
   aiDiv.className = 'kg-msg kg-ai kg-aktuell';
-  aiDiv.innerHTML = `<div class="kg-bubble">${kgVerlinkeDatumPlatzhalter(kgMarkdownZuHtml(dieserText))}</div><button class="kg-diese-version">In Mail übernehmen</button>`;
+  aiDiv.innerHTML = `<div class="kg-bubble">${kgVerlinkePlatzhalter(kgMarkdownZuHtml(dieserText))}</div><button class="kg-diese-version">In Mail übernehmen</button>`;
   verlauf.appendChild(aiDiv);
   aiDiv.querySelector('.kg-diese-version').addEventListener('click', () => {
     zustand.aktuellerEntwurf = dieserText;
@@ -773,10 +825,15 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
     kgUebernehmeInMail(bodyEl, dieserText);
     kgSchliessePanel(zustand);
   });
-  aiDiv.querySelectorAll('.kg-datum-platzhalter').forEach(span => {
+  aiDiv.querySelectorAll('.kg-platzhalter-btn').forEach(span => {
     span.addEventListener('click', (e) => {
       e.stopPropagation();
-      kgOeffneDatumPopover(span, dieserText, chatBereich, bodyEl, zustand);
+      if (span.dataset.art === 'datum') {
+        kgOeffneDatumPopover(span, dieserText, chatBereich, bodyEl, zustand);
+      } else {
+        const aktuellerWert = span.dataset.art === 'gefuellt' ? span.textContent : '';
+        kgOeffneEinfachesPlatzhalterPopover(span, dieserText, chatBereich, bodyEl, zustand, aktuellerWert);
+      }
     });
   });
 
