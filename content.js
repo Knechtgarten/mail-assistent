@@ -175,9 +175,9 @@ function kgFindeToolbar(container) {
 // sind mehrere Compose-/Antwortfenster gleichzeitig offen (z.B. mehrere
 // Mails parallel), wuerde das faelschlicherweise das Betreff-Feld eines
 // ANDEREN, gerade offenen Fensters finden.
-function kgFindeSubjectbox(container) {
-  let el = container;
-  for (let i = 0; i < 8 && el; i++) {
+function kgFindeSubjectbox(startEl, maxEbenen = 8) {
+  let el = startEl;
+  for (let i = 0; i < maxEbenen && el; i++) {
     const sb = el.querySelector('input[name="subjectbox"]');
     if (sb) return sb;
     el = el.parentElement;
@@ -769,7 +769,7 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
   verlauf.appendChild(aiDiv);
   aiDiv.querySelector('.kg-diese-version').addEventListener('click', () => {
     zustand.aktuellerEntwurf = dieserText;
-    kgSetzeBetreff(zustand.aktuellerBetreff);
+    kgSetzeBetreff(zustand.aktuellerBetreff, bodyEl);
     kgUebernehmeInMail(bodyEl, dieserText);
     kgSchliessePanel(zustand);
   });
@@ -1142,10 +1142,13 @@ function kgMarkdownZuHtml(text) {
 // Betreff-Feld setzen (nur beim Verfassen vorhanden, bei Antworten gibt es
 // keins - Gmail behaelt dort automatisch "Re: ..."). Muss ueber die native
 // Value-Setter-Funktion laufen, sonst merkt Gmails eigenes React-artiges UI
-// die Aenderung nicht.
-function kgSetzeBetreff(betreff) {
+// die Aenderung nicht. Suche bewusst vom eigenen bodyEl aus (nicht auf der
+// ganzen Seite) - bei mehreren gleichzeitig offenen Compose-Fenstern wuerde
+// eine seitenweite Suche sonst das Betreff-Feld eines ANDEREN Fensters
+// treffen, das eigene bliebe leer (genau dieser Bug wurde gemeldet).
+function kgSetzeBetreff(betreff, bodyEl) {
   if (!betreff) return;
-  const feld = document.querySelector('input[name="subjectbox"]');
+  const feld = kgFindeSubjectbox(bodyEl, 35);
   if (!feld) return;
   const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
   setter.call(feld, betreff);
