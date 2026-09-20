@@ -1148,28 +1148,50 @@ function kgZfSammleEintraege(tabelle, zf) {
 // die erscheinen danach ganz normal ueber kgZeigeZusatzfenster.
 function kgZeigeEingabePopup(eingabeListe, andereListe, basisText, chatBereich, bodyEl, zustand, opts = {}) {
   const felder = eingabeListe.flatMap(zf => (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge));
-  chatBereich.innerHTML = `
+
+  // Schwebend (eigenes Overlay auf document.body statt im Panel-Ablauf
+  // eingebettet) - macht sofort klar: hier geht es zuerst nicht weiter, bis
+  // das ausgefuellt ist. Kein Klick-Aussen-schliesst, dafuer ein eigener
+  // Abbrechen-Button als Notausgang.
+  document.querySelectorAll('.kg-eingabe-overlay').forEach(el => el.remove());
+  const overlay = document.createElement('div');
+  overlay.className = 'kg-eingabe-overlay';
+  overlay.innerHTML = `
     <div class="kg-dunkel-popup">
       ${felder.map(f => `
         <div class="kg-dunkel-feld">
           <div class="kg-dunkel-feld-label">${kgEscape(f.titel)}</div>
           <input type="text" class="kg-dunkel-ergaenzung kg-zf-eingabe-input" data-platzhalter="${kgEscape(f.platzhalter)}" placeholder="${kgEscape(f.titel)} eintragen …">
         </div>`).join('')}
-      <button type="button" class="kg-dunkel-weiter kg-zf-eingabe-weiter">Weiter</button>
+      <div class="kg-dunkel-popup-btns">
+        <button type="button" class="kg-zf-eingabe-abbrechen">Abbrechen</button>
+        <button type="button" class="kg-dunkel-weiter kg-zf-eingabe-weiter">Weiter</button>
+      </div>
     </div>`;
-  const popup = chatBereich.querySelector('.kg-dunkel-popup');
-  popup.querySelector('.kg-zf-eingabe-input')?.focus();
+  document.body.appendChild(overlay);
 
-  popup.querySelector('.kg-zf-eingabe-weiter').addEventListener('click', () => {
+  // Ungefaehr an der Stelle platzieren, wo das Panel selbst sitzt - nicht
+  // irgendwo zufaellig auf dem Bildschirm.
+  const panelRect = chatBereich.closest('.kg-panel')?.getBoundingClientRect();
+  if (panelRect) {
+    overlay.style.top = Math.max(8, Math.round(panelRect.top + 8)) + 'px';
+    overlay.style.left = Math.round(panelRect.left + panelRect.width / 2) + 'px';
+  }
+
+  overlay.querySelector('.kg-zf-eingabe-input')?.focus();
+  overlay.querySelector('.kg-zf-eingabe-abbrechen').addEventListener('click', () => overlay.remove());
+
+  overlay.querySelector('.kg-zf-eingabe-weiter').addEventListener('click', () => {
     let text = basisText || '';
     let betreff = opts.betreff || '';
-    popup.querySelectorAll('.kg-zf-eingabe-input').forEach(input => {
+    overlay.querySelectorAll('.kg-zf-eingabe-input').forEach(input => {
       const platzhalter = input.dataset.platzhalter;
       const wert = input.value.trim();
       if (!wert) return;
       text = text.replaceAll(platzhalter, wert);
       betreff = betreff.replaceAll(platzhalter, wert);
     });
+    overlay.remove();
     if (andereListe.length) {
       kgZeigeZusatzfenster(andereListe, text, chatBereich, bodyEl, zustand, { ...opts, betreff });
     } else {

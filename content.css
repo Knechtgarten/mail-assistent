@@ -231,6 +231,21 @@
 .kg-dunkel-feld-label { font-size: 10px; color: rgba(255,255,255,.75); margin-bottom: 3px; }
 .kg-dunkel-feld .kg-dunkel-ergaenzung { display: block; width: 100%; box-sizing: border-box; }
 
+/* Eingabe-Popup schwebt als eigenes, kompaktes Fenster ueber der Seite statt
+   im Panel-Ablauf eingebettet zu sein - macht sofort klar: hier muss man
+   zuerst etwas eingeben, bevor es weitergeht. */
+.kg-eingabe-overlay {
+  position: fixed; z-index: 999999; transform: translateX(-50%); width: 300px;
+}
+.kg-eingabe-overlay .kg-dunkel-popup { box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+.kg-dunkel-popup-btns { display: flex; gap: 8px; margin-top: 10px; }
+.kg-dunkel-popup-btns .kg-dunkel-weiter { flex: 1; width: auto; margin-top: 0; }
+.kg-zf-eingabe-abbrechen {
+  flex: 1; background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.35);
+  border-radius: 12px; padding: 7px 12px; font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit;
+}
+.kg-zf-eingabe-abbrechen:hover { background: rgba(255,255,255,.22); }
+
 /* Klickbarer Platzhalter (z.B. "[Datum]" oder von der KI ausgefuellt als
    "[[Wert]]") im fertigen Entwurf, plus das kleine Auswahlfenster, das beim
    Klick erscheint. */
