@@ -223,6 +223,14 @@
 }
 .kg-dunkel-weiter:hover { background: #D6E7F4; }
 
+/* Felder eines Eingabe-Popups (Zusatzfenster-Typ "eingabe") - jedes mit
+   eigenem Label darueber statt in einer Zeile mit Mikrofon wie die
+   Ergaenzungs-Zeile. */
+.kg-dunkel-feld { margin-top: 8px; }
+.kg-dunkel-feld:first-child { margin-top: 0; }
+.kg-dunkel-feld-label { font-size: 10px; color: rgba(255,255,255,.75); margin-bottom: 3px; }
+.kg-dunkel-feld .kg-dunkel-ergaenzung { display: block; width: 100%; box-sizing: border-box; }
+
 /* Klickbarer Platzhalter (z.B. "[Datum]" oder von der KI ausgefuellt als
    "[[Wert]]") im fertigen Entwurf, plus das kleine Auswahlfenster, das beim
    Klick erscheint. */

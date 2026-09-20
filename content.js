@@ -370,9 +370,14 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
         // Strukturierte Eingabemaske(n) (z.B. Bestell-Tabelle) zuerst zeigen -
         // die daraus gebaute Liste ersetzt den jeweiligen Platzhalter direkt,
         // ganz ohne KI-Aufruf (die Daten sind schon vollstaendig strukturiert).
-        kgZeigeZusatzfenster(zusatzfensterListe, vorlage.inhalt || '', chatBereich, bodyEl, zustand, {
-          vorlageId: vorlage.id, betreff: vorlage.betreff, titelLabel: `Vorlage: ${vorlage.titel}`,
-        });
+        const eingabeListe = zusatzfensterListe.filter(zf => zf.typ === 'eingabe');
+        const andereListe = zusatzfensterListe.filter(zf => zf.typ !== 'eingabe');
+        const opts = { vorlageId: vorlage.id, betreff: vorlage.betreff, titelLabel: `Vorlage: ${vorlage.titel}` };
+        if (eingabeListe.length) {
+          kgZeigeEingabePopup(eingabeListe, andereListe, vorlage.inhalt || '', chatBereich, bodyEl, zustand, opts);
+        } else {
+          kgZeigeZusatzfenster(andereListe, vorlage.inhalt || '', chatBereich, bodyEl, zustand, opts);
+        }
         return;
       }
       const anredeUeberschreibung = zustand.anrede ? KG_ANREDE_ANWEISUNG[zustand.anrede] : null;
@@ -574,10 +579,17 @@ function kgZeigeAntwortenErgebnis(scroll, bodyEl, zustand, data) {
   zustand.aktuellerEntwurf = data.text;
   zustand.aktuelleVorlageId = data.vorlageId || zustand.aktuelleVorlageId || null;
   if (data.zusatzfenster?.length) {
-    // Die passende Vorlage hat z.B. einen Kalender-Baustein zugewiesen -
-    // erst die strukturierte Eingabe (echte Termine waehlen usw.) zeigen,
-    // die den/die Platzhalter im schon generierten Entwurf ersetzt.
-    kgZeigeZusatzfenster(data.zusatzfenster, data.text, chatBereich, bodyEl, zustand, { vorlageId: data.vorlageId });
+    // Die passende Vorlage hat z.B. einen Kalender-Baustein oder ein
+    // Eingabe-Popup zugewiesen - erst die strukturierte Eingabe zeigen, die
+    // den/die Platzhalter im schon generierten Entwurf ersetzt.
+    const eingabeListe = data.zusatzfenster.filter(zf => zf.typ === 'eingabe');
+    const andereListe = data.zusatzfenster.filter(zf => zf.typ !== 'eingabe');
+    const opts = { vorlageId: data.vorlageId };
+    if (eingabeListe.length) {
+      kgZeigeEingabePopup(eingabeListe, andereListe, data.text, chatBereich, bodyEl, zustand, opts);
+    } else {
+      kgZeigeZusatzfenster(andereListe, data.text, chatBereich, bodyEl, zustand, opts);
+    }
   } else {
     kgZeigeEntwurf(chatBereich, bodyEl, zustand);
   }
@@ -930,11 +942,14 @@ function kgZusatzfensterVon(vorlage) {
   const liste = Array.isArray(eintraege) ? eintraege : [eintraege];
   return liste.map(e => e.mailassistent_zusatzfenster).filter(Boolean);
 }
-// Definierte Position: Dropdown (typ='dropdown') oder Zahlenfeld (typ='zahl'),
-// wie in der Verwaltung konfiguriert.
+// Definierte Position: Dropdown (typ='dropdown'), Zahlenfeld (typ='zahl')
+// oder freies Textfeld (typ='text'), wie in der Verwaltung konfiguriert.
 function kgZfSpalteFeldHtml(s) {
   if (s.typ === 'zahl') {
     return `<td><input type="number" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}">${s.einheit ? ` <span class="kg-zf-einheit">${kgEscape(s.einheit)}</span>` : ''}</td>`;
+  }
+  if (s.typ === 'text') {
+    return `<td><input type="text" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}"></td>`;
   }
   const optionen = (s.mailassistent_zusatzfenster_spalte_option || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   return `<td><select class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}">
@@ -1108,6 +1123,47 @@ function kgZfSammleEintraege(tabelle, zf) {
   });
   return eintraege;
 }
+// Zusatzfenster vom Typ "eingabe": kleines dunkles Popup mit frei
+// definierten Textfeldern (z.B. "Objekt") - erscheint vor dem Erstellen.
+// Anders als bei Tabelle/Kalender hat hier JEDES Feld seinen EIGENEN
+// Platzhalter, der sowohl im Mailtext als auch im Betreff ersetzt wird.
+// andereListe sind weitere (nicht-"eingabe") Zusatzfenster derselben Vorlage -
+// die erscheinen danach ganz normal ueber kgZeigeZusatzfenster.
+function kgZeigeEingabePopup(eingabeListe, andereListe, basisText, chatBereich, bodyEl, zustand, opts = {}) {
+  const felder = eingabeListe.flatMap(zf => (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge));
+  chatBereich.innerHTML = `
+    <div class="kg-dunkel-popup">
+      ${felder.map(f => `
+        <div class="kg-dunkel-feld">
+          <div class="kg-dunkel-feld-label">${kgEscape(f.titel)}</div>
+          <input type="text" class="kg-dunkel-ergaenzung kg-zf-eingabe-input" data-platzhalter="${kgEscape(f.platzhalter)}" placeholder="${kgEscape(f.titel)} eintragen …">
+        </div>`).join('')}
+      <button type="button" class="kg-dunkel-weiter kg-zf-eingabe-weiter">Weiter</button>
+    </div>`;
+  const popup = chatBereich.querySelector('.kg-dunkel-popup');
+  popup.querySelector('.kg-zf-eingabe-input')?.focus();
+
+  popup.querySelector('.kg-zf-eingabe-weiter').addEventListener('click', () => {
+    let text = basisText || '';
+    let betreff = opts.betreff || '';
+    popup.querySelectorAll('.kg-zf-eingabe-input').forEach(input => {
+      const platzhalter = input.dataset.platzhalter;
+      const wert = input.value.trim();
+      if (!wert) return;
+      text = text.replaceAll(platzhalter, wert);
+      betreff = betreff.replaceAll(platzhalter, wert);
+    });
+    if (andereListe.length) {
+      kgZeigeZusatzfenster(andereListe, text, chatBereich, bodyEl, zustand, { ...opts, betreff });
+    } else {
+      zustand.aktuellerEntwurf = text;
+      if (opts.vorlageId) zustand.aktuelleVorlageId = opts.vorlageId;
+      if (betreff) zustand.aktuellerBetreff = betreff;
+      kgZeigeEntwurf(chatBereich, bodyEl, zustand, opts.titelLabel);
+    }
+  });
+}
+
 // zfListe: alle Zusatzfenster, die dieser Vorlage zugewiesen sind - erscheinen
 // gemeinsam untereinander in einem Fenster mit einer gemeinsamen
 // "Übernehmen"-Aktion, die jede Tabelle in ihren eigenen Platzhalter einsetzt.
