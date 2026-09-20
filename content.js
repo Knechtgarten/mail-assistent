@@ -199,12 +199,21 @@ function kgFindeToolbar(container) {
 // Ein sichtbares Betreff-Feld gibt es nur beim Verfassen einer neuen Mail,
 // nicht beim Antworten (dort ist "Betreff" standardmaessig ausgeblendet).
 // "container" reicht oft nicht bis zum Betreff-Feld hoch (das liegt in einer
-// eigenen Zeile ueber der Toolbar) - darum noch ein paar Ebenen hoeher
-// suchen. Bewusst NICHT auf der ganzen Seite (document.querySelector) -
-// sind mehrere Compose-/Antwortfenster gleichzeitig offen (z.B. mehrere
-// Mails parallel), wuerde das faelschlicherweise das Betreff-Feld eines
-// ANDEREN, gerade offenen Fensters finden.
+// eigenen Zeile ueber der Toolbar). Bewusst NICHT auf der ganzen Seite
+// (document.querySelector) - sind mehrere Compose-/Antwortfenster
+// gleichzeitig offen (z.B. mehrere Mails parallel), wuerde das
+// faelschlicherweise das Betreff-Feld eines ANDEREN, gerade offenen Fensters
+// finden. Zuerst gezielt im umschliessenden Popup-Fenster suchen (Gmails
+// "Neue Nachricht"-Popups sind div[role="dialog"] - eine exakte, verlaessliche
+// Fenstergrenze statt einer geratenen Anzahl Ebenen); nur wenn das nicht
+// greift (z.B. bei einer eingebetteten Antwort im Thread, kein Dialog),
+// stattdessen eine begrenzte Anzahl Ebenen hochklettern.
 function kgFindeSubjectbox(startEl, maxEbenen = 8) {
+  const dialog = startEl.closest ? startEl.closest('div[role="dialog"]') : null;
+  if (dialog) {
+    const sb = dialog.querySelector('input[name="subjectbox"]');
+    if (sb) return sb;
+  }
   let el = startEl;
   for (let i = 0; i < maxEbenen && el; i++) {
     const sb = el.querySelector('input[name="subjectbox"]');
