@@ -1057,10 +1057,10 @@ function kgZfSpalteFeldHtml(s) {
 // Eigene Position: exakt dieselben Spalten wie oben, aber immer als leeres
 // Freitextfeld statt Dropdown/Zahlenfeld - die vorgegebenen Optionen decken
 // eine eigene Position per Definition nicht ab.
-function kgZfEigeneZeileHtml(spalten) {
+function kgZfEigeneZeileHtml(spalten, zeigtAnzahl) {
   return `
     <tr class="kg-zf-zeile kg-zf-eigene-zeile" data-position="">
-      <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
+      ${zeigtAnzahl ? '<td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>' : ''}
       <td><input type="text" class="kg-zf-eigenname" placeholder="Eigene Position"></td>
       ${spalten.map(s => `<td><input type="text" class="kg-zf-spalte" data-spalte="${kgEscape(s.titel)}" placeholder="frei"${kgZfSpalteBreiteStyle(s)}></td>`).join('')}
     </tr>`;
@@ -1075,10 +1075,10 @@ function kgZfZeileAusHtml(html) {
 // Positions-Spalte - stattdessen einfach eine wachsende Liste ganz normaler
 // Dropdown/Zahl-Zeilen, die sich beim Ausfuellen der letzten automatisch
 // vermehrt.
-function kgZfGenerischeZeileHtml(spalten) {
+function kgZfGenerischeZeileHtml(spalten, zeigtAnzahl) {
   return `
     <tr class="kg-zf-zeile kg-zf-generische-zeile">
-      <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
+      ${zeigtAnzahl ? '<td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>' : ''}
       ${spalten.map(s => kgZfSpalteFeldHtml(s)).join('')}
     </tr>`;
 }
@@ -1093,22 +1093,25 @@ function kgZfTabelleHtml(zf, index) {
   // optionalem Positionen-Zusatz): 'tabelle_fix' hat feste, in der
   // Verwaltung erfasste Zeilen, 'tabelle' waechst in Gmail frei.
   const istFix = zf.typ === 'tabelle_fix';
+  // Manche Tabellen brauchen keine Anzahl (z.B. reine Materialangaben wie
+  // Flaeche/Holzart/Laenge ohne Stueckzahl) - per Zusatzfenster abschaltbar.
+  const zeigtAnzahl = zf.zeigt_anzahl !== false;
   let kopfHtml, zeilenHtml;
   if (istFix) {
     const zeileHtml = (titel) => `
       <tr class="kg-zf-zeile" data-position="${kgEscape(titel)}">
-        <td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>
+        ${zeigtAnzahl ? '<td><input type="number" min="0" class="kg-zf-anzahl" value="0"></td>' : ''}
         <td>${kgEscape(titel)}</td>
         ${spalten.map(s => kgZfSpalteFeldHtml(s)).join('')}
       </tr>`;
-    kopfHtml = `<th>Anzahl</th><th>Position</th>${spaltenHtml}`;
+    kopfHtml = `${zeigtAnzahl ? '<th>Anzahl</th>' : ''}<th>Position</th>${spaltenHtml}`;
     zeilenHtml = positionen.map(p => zeileHtml(p.titel)).join('')
-      + (zf.erlaubt_eigene_eingabe ? kgZfEigeneZeileHtml(spalten) : '');
+      + (zf.erlaubt_eigene_eingabe ? kgZfEigeneZeileHtml(spalten, zeigtAnzahl) : '');
   } else {
     // Keine Positionen erfasst: immer mindestens eine ausfuellbare Zeile
     // zeigen, sonst waere die Tabelle leer und unbenutzbar.
-    kopfHtml = `<th>Anzahl</th>${spaltenHtml}`;
-    zeilenHtml = kgZfGenerischeZeileHtml(spalten);
+    kopfHtml = `${zeigtAnzahl ? '<th>Anzahl</th>' : ''}${spaltenHtml}`;
+    zeilenHtml = kgZfGenerischeZeileHtml(spalten, zeigtAnzahl);
   }
   return `
     <div class="kg-zf-block">
@@ -1184,9 +1187,14 @@ async function kgZfKalenderListeRendern(block) {
 }
 function kgZfSammleEintraege(tabelle, zf) {
   const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
+  const zeigtAnzahl = zf.zeigt_anzahl !== false;
   const eintraege = [];
   tabelle.querySelectorAll('.kg-zf-zeile').forEach(zeile => {
-    const anzahl = parseInt(zeile.querySelector('.kg-zf-anzahl').value, 10) || 0;
+    // Ohne Anzahl-Spalte zaehlt jede Zeile mit ausgefuellter Position/erster
+    // Spalte als Eintrag - es gibt kein "0x" mehr, das eine Zeile aussortieren
+    // koennte.
+    const anzahl = zeigtAnzahl ? (parseInt(zeile.querySelector('.kg-zf-anzahl').value, 10) || 0) : null;
+    const praefix = zeigtAnzahl ? `${anzahl}x ` : '';
     // Generische Zeile (keine Positionen definiert): keine eigene
     // Positions-Bezeichnung vorhanden - die erste Spalte (z.B. "Artikel")
     // uebernimmt diese Rolle, der Rest wird als Detail angehaengt.
@@ -1197,17 +1205,17 @@ function kgZfSammleEintraege(tabelle, zf) {
         return feld ? feld.value.trim() : '';
       });
       const positionsname = werte[0];
-      if (!positionsname || anzahl <= 0) return;
+      if (!positionsname || (zeigtAnzahl && anzahl <= 0)) return;
       const details = spalten.slice(1)
         .map((s, i) => werte[i + 1] ? `${s.titel}: ${werte[i + 1]}` : null)
         .filter(Boolean)
         .join(', ');
-      eintraege.push(`- ${anzahl}x ${positionsname}${details ? ' (' + details + ')' : ''}`);
+      eintraege.push(`- ${praefix}${positionsname}${details ? ' (' + details + ')' : ''}`);
       return;
     }
     const eigennameEl = zeile.querySelector('.kg-zf-eigenname');
     const positionsname = eigennameEl ? eigennameEl.value.trim() : zeile.dataset.position;
-    if (!positionsname || anzahl <= 0) return;
+    if (!positionsname || (zeigtAnzahl && anzahl <= 0)) return;
     const details = spalten
       .map(s => {
         const feld = zeile.querySelector(`.kg-zf-spalte[data-spalte="${CSS.escape(s.titel)}"]`);
@@ -1216,7 +1224,7 @@ function kgZfSammleEintraege(tabelle, zf) {
       })
       .filter(Boolean)
       .join(', ');
-    eintraege.push(`- ${anzahl}x ${positionsname}${details ? ' (' + details + ')' : ''}`);
+    eintraege.push(`- ${praefix}${positionsname}${details ? ' (' + details + ')' : ''}`);
   });
   return eintraege;
 }
@@ -1320,6 +1328,7 @@ function kgZeigeZusatzfenster(zfListe, basisText, chatBereich, bodyEl, zustand, 
     const tbody = container.querySelector(`table[data-zf-index="${i}"] tbody`);
     const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
     const istFix = zf.typ === 'tabelle_fix';
+    const zeigtAnzahl = zf.zeigt_anzahl !== false;
 
     // Typ "tabelle": generische Dropdown-Zeilen wachsen automatisch nach.
     // Typ "tabelle_fix": die "Eigene Position"-Zeilen wachsen nach (falls
@@ -1331,7 +1340,7 @@ function kgZeigeZusatzfenster(zfListe, basisText, chatBereich, bodyEl, zustand, 
         const zeilen = tbody.querySelectorAll('.kg-zf-generische-zeile');
         if (zeile !== zeilen[zeilen.length - 1]) return;
         const hatInhalt = Array.from(zeile.querySelectorAll('input, select')).some(f => f.value.trim());
-        if (hatInhalt) tbody.appendChild(kgZfZeileAusHtml(kgZfGenerischeZeileHtml(spalten)));
+        if (hatInhalt) tbody.appendChild(kgZfZeileAusHtml(kgZfGenerischeZeileHtml(spalten, zeigtAnzahl)));
       });
     } else if (zf.erlaubt_eigene_eingabe) {
       tbody.addEventListener('input', (e) => {
@@ -1340,7 +1349,7 @@ function kgZeigeZusatzfenster(zfListe, basisText, chatBereich, bodyEl, zustand, 
         const eigeneZeilen = tbody.querySelectorAll('.kg-zf-eigene-zeile');
         if (zeile !== eigeneZeilen[eigeneZeilen.length - 1]) return;
         const hatInhalt = Array.from(zeile.querySelectorAll('input')).some(f => f.value.trim());
-        if (hatInhalt) tbody.appendChild(kgZfZeileAusHtml(kgZfEigeneZeileHtml(spalten)));
+        if (hatInhalt) tbody.appendChild(kgZfZeileAusHtml(kgZfEigeneZeileHtml(spalten, zeigtAnzahl)));
       });
     }
   });
