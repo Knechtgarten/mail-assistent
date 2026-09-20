@@ -624,12 +624,15 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   const partnerListe = data.distanz?.partner || [];
   // Von den Partnerbetrieben nur der naechstgelegene wird gruen hervorgehoben
   // (Entscheidungshilfe: "der hier waere am naechsten") - die anderen bleiben
-  // in der neutralen Textfarbe. Der eigene Standort (Knechtgarten) ist davon
-  // unabhaengig immer gruen, unabhaengig vom Vergleich. Gleiches gilt fuer
-  // den kompakten Weiterleiten-Button: nur beim naechsten Partner gruen.
-  const naechsterPartnerMinuten = partnerListe.length ? Math.min(...partnerListe.map(p => p.minuten)) : null;
+  // in der neutralen Textfarbe. Liegt KEINER innerhalb der admin-konfigurierten
+  // "in der Naehe"-Schwelle, wird gar keiner hervorgehoben (Backend
+  // entscheidet das schon, siehe distanz.naechsterPartnerId - kein
+  // separates Minuten-Minimum mehr im Frontend, damit die Schwelle nicht
+  // doppelt gepflegt werden muss). Der eigene Standort (Knechtgarten) ist
+  // davon unabhaengig immer gruen.
+  const naechsterPartnerId = data.distanz?.naechsterPartnerId || null;
   const partnerZeileHtml = p => {
-    const istNaeher = p.minuten === naechsterPartnerMinuten;
+    const istNaeher = p.id === naechsterPartnerId;
     const weiterleitenBtn = p.weiterleitungText
       ? `<button type="button" class="kg-ka-weiterleiten-btn${istNaeher ? ' kg-ka-info-naeher' : ''}" data-partner-id="${kgEscape(p.id)}" title="Antwort mit Weiterleitungstext von ${kgEscape(p.name)} erstellen">Weiterleiten</button>`
       : '<span></span>';
