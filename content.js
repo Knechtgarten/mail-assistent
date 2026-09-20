@@ -620,13 +620,21 @@ function kgOeffneDatumPopover(span, dieserText, chatBereich, bodyEl, zustand) {
   });
 
   popover.querySelector('[data-opt="kalender"]').addEventListener('click', () => {
-    popover.innerHTML = kgZfKalenderBlockHtml({ titel: 'Termin(e) auswählen' }, 'datum-popover') + `
+    // Hier (anders als beim Zusatzfenster vor dem Erstellen einer Vorlage)
+    // ist "Termin(e) vorschlagen" schon die bewusste zweite Wahl im Popup -
+    // der Kalender soll darum sofort aufgehen, ohne noch einen Button dafuer
+    // anzuzeigen.
+    kgKalenderOeffnen();
+    popover.innerHTML = `
+      <div class="kg-zf-block" data-zf-kalender-index="datum-popover">
+        <div class="kg-zf-kalender-liste"></div>
+        <div class="kg-zf-kalender-hinweis">Wähle im geöffneten Kalender eine freie Zeit und klicke dort auf „In Mail übernehmen" – der Termin erscheint hier automatisch.</div>
+      </div>
       <div class="kg-zf-btns">
         <button type="button" class="kg-zf-abbrechen">Abbrechen</button>
         <button type="button" class="kg-zf-uebernehmen">Übernehmen</button>
       </div>`;
     const block = popover.querySelector('[data-zf-kalender-index="datum-popover"]');
-    block.querySelector('.kg-zf-kalender-oeffnen').addEventListener('click', kgKalenderOeffnen);
     kgZfKalenderListeRendern(block);
     if (chrome.storage?.onChanged) {
       const listener = (changes, area) => { if (area === 'local' && changes[KG_KALENDER_STORAGE_KEY]) kgZfKalenderListeRendern(block); };
