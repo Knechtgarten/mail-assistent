@@ -490,7 +490,11 @@ async function kgAntwortenStarten(scroll, bodyEl, container, zustand) {
 
   try {
     const data = await kgRufeApiAuf({ modus: 'antworten', mailInhalt: zustand.mailInhalt, intern: istIntern, mitarbeiterEmail: kgHoleMitarbeiterEmail() });
-    if (data.aktion === 'rueckfrage') {
+    if (data.aktion === 'rueckfrage' || data.aktion === 'auswahl') {
+      // "auswahl": die KI war sich zwischen zwei aehnlichen Vorlagen unsicher
+      // - gleiches Popup wie bei einer echten Rueckfrage (Frage + Buttons
+      // uebereinander), nur dass die Buttons hier Vorlagen-Titel statt
+      // vordefinierter Antwort-Zweige sind.
       kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand);
     } else {
       kgZeigeErgaenzungImPopup(popup, data, scroll, bodyEl, zustand);
@@ -520,16 +524,21 @@ function kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   popup.querySelectorAll('.kg-dunkel-antwort').forEach(btn => {
     btn.addEventListener('click', async () => {
       const anweisung = ergaenzungFeld.value.trim() || undefined;
-      zustand.aktuelleVorlageId = data.vorlageId;
+      if (data.aktion === 'rueckfrage') zustand.aktuelleVorlageId = data.vorlageId;
       // Popup zeigt weiter die Ladeanzeige, bis das ERSTE Textstueck da ist -
       // sonst wechselt die Anzeige zu frueh auf ein noch leeres Feld mit nur
       // dem blinkenden Cursor, bevor ueberhaupt etwas lesbar ist.
       popup.innerHTML = `<div class="kg-dunkel-spinner"></div><div class="kg-dunkel-text">Einen Moment, ich bereite die Antwort vor …</div>`;
       let chatBereich = null;
       let liveBubble = null;
+      // "auswahl": der Button-Text IST der exakte Vorlagen-Titel (siehe
+      // Backend), darum reicht data-label direkt als vorlageTitel.
+      const payload = data.aktion === 'auswahl'
+        ? { modus: 'auswahl-antwort', vorlageTitel: btn.dataset.label, anweisung, mailInhalt: zustand.mailInhalt, mitarbeiterEmail: kgHoleMitarbeiterEmail() }
+        : { modus: 'rueckfrage-antwort', vorlageId: data.vorlageId, antwortLabel: btn.dataset.label, anweisung, mailInhalt: zustand.mailInhalt, mitarbeiterEmail: kgHoleMitarbeiterEmail() };
       try {
         const text = await kgRufeApiStreamend(
-          { modus: 'rueckfrage-antwort', vorlageId: data.vorlageId, antwortLabel: btn.dataset.label, anweisung, mailInhalt: zustand.mailInhalt, mitarbeiterEmail: kgHoleMitarbeiterEmail() },
+          payload,
           (vollText) => {
             if (!chatBereich) {
               scroll.innerHTML = '<div class="kg-chat-bereich"></div>';
