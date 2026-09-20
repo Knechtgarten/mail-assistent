@@ -868,7 +868,18 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
   aiDiv.className = 'kg-msg kg-ai kg-aktuell';
   aiDiv.innerHTML = `<div class="kg-bubble">${kgVerlinkePlatzhalter(kgMarkdownZuHtml(dieserText))}</div><button class="kg-diese-version">In Mail übernehmen</button>`;
   verlauf.appendChild(aiDiv);
-  aiDiv.querySelector('.kg-diese-version').addEventListener('click', () => {
+  // Farbe/Form direkt hier statt nur ueber die externe CSS-Datei setzen -
+  // die liess sich in Gmail schon einmal (Dropdown-Menue) nicht zuverlaessig
+  // aktualisieren, inline ist das unabhaengig von jeglichem CSS-Cache.
+  const uebernehmenBtn = aiDiv.querySelector('.kg-diese-version');
+  Object.assign(uebernehmenBtn.style, {
+    display: 'inline-block', marginTop: '6px', background: '#D1DB5F', color: '#323E4E',
+    border: 'none', borderRadius: '10px', fontSize: '10px', fontWeight: '700',
+    textDecoration: 'none', cursor: 'pointer', padding: '3px 9px', fontFamily: 'inherit',
+  });
+  uebernehmenBtn.addEventListener('mouseenter', () => { uebernehmenBtn.style.background = '#c3d454'; });
+  uebernehmenBtn.addEventListener('mouseleave', () => { uebernehmenBtn.style.background = '#D1DB5F'; });
+  uebernehmenBtn.addEventListener('click', () => {
     zustand.aktuellerEntwurf = dieserText;
     kgSetzeBetreff(zustand.aktuellerBetreff, bodyEl);
     kgUebernehmeInMail(bodyEl, dieserText);
