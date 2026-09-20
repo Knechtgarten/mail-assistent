@@ -203,22 +203,27 @@ function kgFindeToolbar(container) {
 // (document.querySelector) - sind mehrere Compose-/Antwortfenster
 // gleichzeitig offen (z.B. mehrere Mails parallel), wuerde das
 // faelschlicherweise das Betreff-Feld eines ANDEREN, gerade offenen Fensters
-// finden. Zuerst gezielt im umschliessenden Popup-Fenster suchen (Gmails
-// "Neue Nachricht"-Popups sind div[role="dialog"] - eine exakte, verlaessliche
-// Fenstergrenze statt einer geratenen Anzahl Ebenen); nur wenn das nicht
-// greift (z.B. bei einer eingebetteten Antwort im Thread, kein Dialog),
-// stattdessen eine begrenzte Anzahl Ebenen hochklettern.
-function kgFindeSubjectbox(startEl, maxEbenen = 8) {
-  const dialog = startEl.closest ? startEl.closest('div[role="dialog"]') : null;
-  if (dialog) {
-    const sb = dialog.querySelector('input[name="subjectbox"]');
-    if (sb) return sb;
-  }
-  let el = startEl;
-  for (let i = 0; i < maxEbenen && el; i++) {
-    const sb = el.querySelector('input[name="subjectbox"]');
-    if (sb) return sb;
-    el = el.parentElement;
+// finden. Frueher wurde dafuer der naechste div[role="dialog"]-Vorfahre
+// gesucht - Gmails KOMPAKTES "Neue Nachricht"-Popup (unten rechts, nicht
+// ausgeklappt) hat aber offenbar keinen solchen Dialog-Container, darum
+// blieb das Betreff-Feld dort unauffindbar. Robusterer, struktur-
+// unabhaengiger Ansatz: ALLE Betreff-Felder auf der Seite einsammeln (meist
+// eh nur eines, ausser mehrere Compose-Fenster sind gleichzeitig offen) und
+// dasjenige nehmen, dessen Vorfahren-Kette auch startEl (das Mailtext-Feld)
+// enthaelt - das ist garantiert das gleiche Fenster, unabhaengig davon, ob
+// Gmail gerade ein Dialog, ein kompaktes Popup oder eine eingebettete
+// Antwort im Thread verwendet.
+function kgFindeSubjectbox(startEl) {
+  const kandidaten = Array.from(document.querySelectorAll('input[name="subjectbox"]'));
+  if (kandidaten.length <= 1) return kandidaten[0] || null;
+  for (const feld of kandidaten) {
+    let el = feld.parentElement;
+    let ebenen = 0;
+    while (el && ebenen < 60) {
+      if (el.contains(startEl)) return feld;
+      el = el.parentElement;
+      ebenen++;
+    }
   }
   return null;
 }
@@ -1346,6 +1351,7 @@ function kgZeigeZusatzfenster(zfListe, basisText, chatBereich, bodyEl, zustand, 
   });
   container.querySelector('.kg-zf-uebernehmen').addEventListener('click', async () => {
     let text = basisText || '';
+    let betreff = opts.betreff || '';
     let irgendwasAusgefuellt = false;
     for (let i = 0; i < zfListe.length; i++) {
       const zf = zfListe[i];
@@ -1360,6 +1366,7 @@ function kgZeigeZusatzfenster(zfListe, basisText, chatBereich, bodyEl, zustand, 
           // soll die Optionen klar getrennt sehen.
           const terminText = liste.length === 1 ? liste[0].anzeige : liste.map(e => `- ${e.anzeige}`).join('\n');
           text = text.includes(zf.platzhalter) ? text.replace(zf.platzhalter, terminText) : `${text}\n\n${terminText}`;
+          betreff = betreff.replaceAll(zf.platzhalter, terminText);
           await chrome.storage.local.set({ [KG_KALENDER_STORAGE_KEY]: [] });
         } catch (e) { /* Extension context invalidated - harmlos, siehe oben */ }
         continue;
@@ -1370,6 +1377,7 @@ function kgZeigeZusatzfenster(zfListe, basisText, chatBereich, bodyEl, zustand, 
       irgendwasAusgefuellt = true;
       const liste = eintraege.join('\n');
       text = text.includes(zf.platzhalter) ? text.replace(zf.platzhalter, liste) : `${text}\n\n${liste}`;
+      betreff = betreff.replaceAll(zf.platzhalter, liste);
     }
     if (!irgendwasAusgefuellt) {
       if (!container.querySelector('.kg-zf-hinweis')) {
@@ -1383,7 +1391,7 @@ function kgZeigeZusatzfenster(zfListe, basisText, chatBereich, bodyEl, zustand, 
     kalenderAufraeumen.forEach(fn => fn());
     zustand.aktuellerEntwurf = text;
     if (opts.vorlageId) zustand.aktuelleVorlageId = opts.vorlageId;
-    if (opts.betreff) zustand.aktuellerBetreff = opts.betreff;
+    if (betreff) zustand.aktuellerBetreff = betreff;
     chatBereich.innerHTML = '';
     kgZeigeEntwurf(chatBereich, bodyEl, zustand, opts.titelLabel);
   });
@@ -1429,13 +1437,13 @@ function kgMarkdownZuHtml(text) {
 // Betreff-Feld setzen (nur beim Verfassen vorhanden, bei Antworten gibt es
 // keins - Gmail behaelt dort automatisch "Re: ..."). Muss ueber die native
 // Value-Setter-Funktion laufen, sonst merkt Gmails eigenes React-artiges UI
-// die Aenderung nicht. Suche bewusst vom eigenen bodyEl aus (nicht auf der
-// ganzen Seite) - bei mehreren gleichzeitig offenen Compose-Fenstern wuerde
-// eine seitenweite Suche sonst das Betreff-Feld eines ANDEREN Fensters
-// treffen, das eigene bliebe leer (genau dieser Bug wurde gemeldet).
+// die Aenderung nicht. kgFindeSubjectbox uebernimmt die Zuordnung zum
+// richtigen Fenster (siehe dort) - bei mehreren gleichzeitig offenen
+// Compose-Fenstern landet das Betreff sonst im falschen Fenster oder gar
+// nicht (genau dieser Bug wurde mehrfach gemeldet).
 function kgSetzeBetreff(betreff, bodyEl) {
   if (!betreff) return;
-  const feld = kgFindeSubjectbox(bodyEl, 35);
+  const feld = kgFindeSubjectbox(bodyEl);
   if (!feld) return;
   const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
   setter.call(feld, betreff);
