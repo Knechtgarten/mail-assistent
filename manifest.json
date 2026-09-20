@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Knechtgarten Mail-Assistent",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "KI-Unterstuetzung beim Verfassen und Beantworten von Mails direkt in Gmail.",
   "host_permissions": [
     "https://mail.google.com/*",
