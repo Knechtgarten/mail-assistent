@@ -167,15 +167,29 @@ function kgFindeToolbar(container) {
 // ----------------------------------------------------------------------------
 // Aufbau von Button + Panel pro Fenster
 // ----------------------------------------------------------------------------
-function kgInitialisiere(bodyEl, container, toolbar) {
-  // "container" reicht oft nicht bis zum Betreff-Feld hoch (das liegt in
-  // einer eigenen Zeile ueber der Toolbar) - darum hier auf der ganzen Seite
-  // suchen. Ein sichtbares Betreff-Feld gibt es nur beim Verfassen einer
-  // neuen Mail, nicht beim Antworten (dort ist "Betreff" standardmaessig
-  // ausgeblendet).
-  const subjectbox = document.querySelector('input[name="subjectbox"]');
-  const istVerfassen = !!subjectbox && subjectbox.offsetParent !== null;
+// Ein sichtbares Betreff-Feld gibt es nur beim Verfassen einer neuen Mail,
+// nicht beim Antworten (dort ist "Betreff" standardmaessig ausgeblendet).
+// "container" reicht oft nicht bis zum Betreff-Feld hoch (das liegt in einer
+// eigenen Zeile ueber der Toolbar) - darum noch ein paar Ebenen hoeher
+// suchen. Bewusst NICHT auf der ganzen Seite (document.querySelector) -
+// sind mehrere Compose-/Antwortfenster gleichzeitig offen (z.B. mehrere
+// Mails parallel), wuerde das faelschlicherweise das Betreff-Feld eines
+// ANDEREN, gerade offenen Fensters finden.
+function kgFindeSubjectbox(container) {
+  let el = container;
+  for (let i = 0; i < 8 && el; i++) {
+    const sb = el.querySelector('input[name="subjectbox"]');
+    if (sb) return sb;
+    el = el.parentElement;
+  }
+  return null;
+}
+function kgIstVerfassenFenster(container) {
+  const subjectbox = kgFindeSubjectbox(container);
+  return !!subjectbox && subjectbox.offsetParent !== null;
+}
 
+function kgInitialisiere(bodyEl, container, toolbar) {
   const button = document.createElement('span');
   button.className = 'kg-btn';
   button.innerHTML = 'Mail-Assistent';
@@ -206,9 +220,27 @@ function kgInitialisiere(bodyEl, container, toolbar) {
     zustand.offen = !zustand.offen;
     panel.classList.toggle('kg-show', zustand.offen);
     button.classList.toggle('kg-on', zustand.offen);
-    if (zustand.offen && !panel.dataset.geladen) {
+    if (!zustand.offen) return;
+
+    // Gmail verwendet fuer ein neues Compose-Fenster manchmal denselben
+    // DOM-Container weiter, den vorher schon ein anderes Fenster (z.B. ein
+    // Antwort-Entwurf) benutzt hat - darum bei jedem Oeffnen frisch pruefen,
+    // ob es sich noch um dieselbe Fensterart handelt wie beim letzten Laden.
+    // Falls nicht: alten Zustand/Inhalt verwerfen und neu aufbauen.
+    const istVerfassenJetzt = kgIstVerfassenFenster(container);
+    const typJetzt = istVerfassenJetzt ? 'verfassen' : 'antworten';
+    if (panel.dataset.geladen && panel.dataset.typ !== typJetzt) {
+      delete panel.dataset.geladen;
+      zustand.aktuellerEntwurf = null;
+      zustand.aktuelleVorlageId = null;
+      zustand.aktuellerBetreff = null;
+      zustand.anrede = null;
+      zustand.mailInhalt = null;
+    }
+    if (!panel.dataset.geladen) {
       panel.dataset.geladen = '1';
-      if (istVerfassen) await kgZeigeVerfassenChips(panel, bodyEl, zustand);
+      panel.dataset.typ = typJetzt;
+      if (istVerfassenJetzt) await kgZeigeVerfassenChips(panel, bodyEl, zustand);
       else await kgStarteAntworten(panel, bodyEl, container, zustand);
     }
   });
