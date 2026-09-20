@@ -582,11 +582,20 @@ function kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand) {
 // genau wie ein normaler direkter Entwurf.
 function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   const zeigeInfo = !!(data.distanz || data.hinweistext);
+  const partnerListe = data.distanz?.partner || [];
+  // Von den Partnerbetrieben nur der naechstgelegene wird grUEn hervorgehoben
+  // (Entscheidungshilfe: "der hier waere am naechsten") - die anderen bleiben
+  // in der neutralen Textfarbe. Der eigene Standort (Knechtgarten) ist davon
+  // unabhaengig immer grUEn, unabhaengig vom Vergleich.
+  const naechsterPartnerMinuten = partnerListe.length ? Math.min(...partnerListe.map(p => p.minuten)) : null;
   const infoHtml = zeigeInfo ? `
     <div class="kg-ka-info">
       <div class="kg-ka-info-label">Distanz</div>
-      ${data.distanz?.eigene ? `<div class="kg-ka-info-zeile kg-ka-info-eigene"><span class="kg-ka-info-name">Knechtgarten</span> <span class="kg-ka-info-wert">${data.distanz.eigene.km} km · ${data.distanz.eigene.minuten} Min</span></div>` : ''}
-      ${(data.distanz?.partner || []).map(p => `<div class="kg-ka-info-zeile"><span class="kg-ka-info-name">${kgEscape(p.name)}</span> <span class="kg-ka-info-wert">${p.km} km · ${p.minuten} Min</span></div>`).join('')}
+      <div class="kg-ka-info-tabelle">
+        ${data.distanz?.eigene ? `<span class="kg-ka-info-name kg-ka-info-eigene-name">Knechtgarten</span><span class="kg-ka-info-wert kg-ka-info-eigene-wert">${data.distanz.eigene.km} km · ${data.distanz.eigene.minuten} Min</span>` : ''}
+        ${data.distanz?.eigene && partnerListe.length ? '<span class="kg-ka-info-trenner"></span>' : ''}
+        ${partnerListe.map(p => `<span class="kg-ka-info-name">${kgEscape(p.name)}</span><span class="kg-ka-info-wert${p.minuten === naechsterPartnerMinuten ? ' kg-ka-info-naeher' : ''}">${p.km} km · ${p.minuten} Min</span>`).join('')}
+      </div>
       ${data.hinweistext ? `<div class="kg-ka-info-hinweis">${kgMarkdownZuHtml(data.hinweistext)}</div>` : ''}
     </div>` : '';
   const buttonsHtml = `<div class="kg-ka-buttons">${data.antworten.map(a => `<button type="button" class="kg-ka-btn" data-id="${kgEscape(a.id)}">${kgEscape(a.label)}</button>`).join('')}</div>`;
