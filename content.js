@@ -309,7 +309,9 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
         // Strukturierte Eingabemaske(n) (z.B. Bestell-Tabelle) zuerst zeigen -
         // die daraus gebaute Liste ersetzt den jeweiligen Platzhalter direkt,
         // ganz ohne KI-Aufruf (die Daten sind schon vollstaendig strukturiert).
-        kgZeigeZusatzfenster(zusatzfensterListe, vorlage, chatBereich, bodyEl, zustand);
+        kgZeigeZusatzfenster(zusatzfensterListe, vorlage.inhalt || '', chatBereich, bodyEl, zustand, {
+          vorlageId: vorlage.id, betreff: vorlage.betreff, titelLabel: `Vorlage: ${vorlage.titel}`,
+        });
         return;
       }
       const anredeUeberschreibung = zustand.anrede ? KG_ANREDE_ANWEISUNG[zustand.anrede] : null;
@@ -439,7 +441,15 @@ async function kgAntwortenGenerieren(chatBereich, bodyEl, container, zustand, st
     chatBereich.innerHTML = '';
     if (data.aktion === 'entwurf') {
       zustand.aktuellerEntwurf = data.text;
-      kgZeigeEntwurf(chatBereich, bodyEl, zustand);
+      zustand.aktuelleVorlageId = data.vorlageId || null;
+      if (data.zusatzfenster?.length) {
+        // Die passende Vorlage hat z.B. einen Kalender-Baustein zugewiesen -
+        // erst die strukturierte Eingabe (echte Termine waehlen usw.) zeigen,
+        // die den/die Platzhalter im schon generierten Entwurf ersetzt.
+        kgZeigeZusatzfenster(data.zusatzfenster, data.text, chatBereich, bodyEl, zustand, { vorlageId: data.vorlageId });
+      } else {
+        kgZeigeEntwurf(chatBereich, bodyEl, zustand);
+      }
       eingabeRow?.remove();
     } else if (data.aktion === 'rueckfrage') {
       kgZeigeRueckfrage(chatBereich, data, bodyEl, zustand);
@@ -777,7 +787,12 @@ function kgZfSammleEintraege(tabelle, zf) {
 // zfListe: alle Zusatzfenster, die dieser Vorlage zugewiesen sind - erscheinen
 // gemeinsam untereinander in einem Fenster mit einer gemeinsamen
 // "Übernehmen"-Aktion, die jede Tabelle in ihren eigenen Platzhalter einsetzt.
-function kgZeigeZusatzfenster(zfListe, vorlage, chatBereich, bodyEl, zustand) {
+// basisText ist entweder der rohe Vorlagentext (Verfassen, ohne KI-Aufruf)
+// oder ein bereits von der KI generierter Entwurf (Antworten) - in beiden
+// Faellen werden die Platzhalter der Zusatzfenster direkt im Text ersetzt.
+// opts.vorlageId/betreff/titelLabel sind optional (bei Antworten oft nicht
+// bekannt, da die KI die Vorlage frei anwendet statt sie 1:1 zu uebernehmen).
+function kgZeigeZusatzfenster(zfListe, basisText, chatBereich, bodyEl, zustand, opts = {}) {
   chatBereich.innerHTML = `
     <div class="kg-zusatzfenster">
       ${zfListe.map((zf, i) => zf.typ === 'kalender' ? kgZfKalenderBlockHtml(zf, i) : kgZfTabelleHtml(zf, i)).join('')}
@@ -836,7 +851,7 @@ function kgZeigeZusatzfenster(zfListe, vorlage, chatBereich, bodyEl, zustand) {
     chatBereich.innerHTML = '';
   });
   container.querySelector('.kg-zf-uebernehmen').addEventListener('click', async () => {
-    let text = vorlage.inhalt || '';
+    let text = basisText || '';
     let irgendwasAusgefuellt = false;
     for (let i = 0; i < zfListe.length; i++) {
       const zf = zfListe[i];
@@ -873,10 +888,10 @@ function kgZeigeZusatzfenster(zfListe, vorlage, chatBereich, bodyEl, zustand) {
     }
     kalenderAufraeumen.forEach(fn => fn());
     zustand.aktuellerEntwurf = text;
-    zustand.aktuelleVorlageId = vorlage.id;
-    if (vorlage.betreff) zustand.aktuellerBetreff = vorlage.betreff;
+    if (opts.vorlageId) zustand.aktuelleVorlageId = opts.vorlageId;
+    if (opts.betreff) zustand.aktuellerBetreff = opts.betreff;
     chatBereich.innerHTML = '';
-    kgZeigeEntwurf(chatBereich, bodyEl, zustand, `Vorlage: ${vorlage.titel}`);
+    kgZeigeEntwurf(chatBereich, bodyEl, zustand, opts.titelLabel);
   });
 }
 
