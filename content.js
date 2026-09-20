@@ -257,7 +257,7 @@ function kgInitialisiere(bodyEl, container, toolbar) {
   // Gmails Handlern hochblubbern.
   ['mousedown', 'click'].forEach(ev => panel.addEventListener(ev, e => e.stopPropagation()));
 
-  const zustand = { offen: false, aktuellerEntwurf: null, aktuelleVorlageId: null, aktuellerBetreff: null, anrede: null, mailInhalt: null, panel, button };
+  const zustand = { offen: false, aktuellerEntwurf: null, aktuelleVorlageId: null, aktuellerBetreff: null, anrede: null, mailInhalt: null, istIntern: false, panel, button };
 
   button.addEventListener('click', async () => {
     zustand.offen = !zustand.offen;
@@ -492,6 +492,7 @@ async function kgAntwortenStarten(scroll, bodyEl, container, zustand) {
   zustand.mailInhalt = kgHoleMailInhalt(bodyEl, container);
   const absender = kgHoleAbsenderEmail(bodyEl);
   const istIntern = !!absender && absender.toLowerCase().endsWith('@knechtgarten.ch');
+  zustand.istIntern = istIntern;
 
   try {
     const data = await kgRufeApiAuf({ modus: 'antworten', mailInhalt: zustand.mailInhalt, intern: istIntern, mitarbeiterEmail: kgHoleMitarbeiterEmail() });
@@ -506,6 +507,10 @@ async function kgAntwortenStarten(scroll, bodyEl, container, zustand) {
       // waehlt manuell aus allen moeglichen Antworten - dafuer eigenes Layout
       // mit zwei Buttons-Spalten + Info-Spalte (Distanz).
       kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand);
+    } else if (istIntern) {
+      // Interne Kollegen-Mail: kein "noch was ergaenzen?"-Zwischenschritt,
+      // direkt zum fertigen (knappen) Entwurf.
+      kgZeigeAntwortenErgebnis(scroll, bodyEl, zustand, data);
     } else {
       kgZeigeErgaenzungImPopup(popup, data, scroll, bodyEl, zustand);
     }
@@ -956,26 +961,31 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
     const obereZeile = chatBereich.closest('.kg-scroll')?.querySelector(':scope > .kg-row');
     if (obereZeile) obereZeile.style.display = 'none';
 
+    // Interne Kollegen-Mail: keine Ton-/Anrede-Buttons (Kuerzer/Foermlicher,
+    // Du/Sie) - bei einer knappen "Ist ok, mache ich."-Antwort unnoetiger
+    // Ballast. Freies Nachbessern-Feld bleibt als einfacher Korrekturweg.
     chatBereich.insertAdjacentHTML('beforeend', `
       <div class="kg-verlauf"></div>
-      <div class="kg-quickchips kg-quick-nachbessern"></div>
+      ${zustand.istIntern ? '' : '<div class="kg-quickchips kg-quick-nachbessern"></div>'}
       <div class="kg-followuprow">
-        <div class="kg-anrede-chips">${kgAnredeChipsHtml()}</div>
+        ${zustand.istIntern ? '' : `<div class="kg-anrede-chips">${kgAnredeChipsHtml()}</div>`}
         <button class="kg-micbtn" title="Diktieren">${kgSvg(KG_ICON_MIC)}</button>
         <input type="text" placeholder="Nachbessern oder eigene Anweisung…">
       </div>`);
     verlauf = chatBereich.querySelector('.kg-verlauf');
 
-    // Anrede-Chips: immer fest vorhanden (unabhaengig von den anpassbaren
-    // Nachbessern-Buttons), da Du/Ihr/Sie eine Grundfunktion ist, kein
-    // optionales Extra. Sobald ein Entwurf steht (hier immer der Fall),
-    // loest ein Klick sofort eine Umformulierung aus.
-    kgVerdrahteAnredeChips(chatBereich.querySelector('.kg-followuprow .kg-anrede-chips'), chatBereich, bodyEl, zustand);
-    kgAktualisiereAnredeChips(zustand);
+    if (!zustand.istIntern) {
+      // Anrede-Chips: immer fest vorhanden (unabhaengig von den anpassbaren
+      // Nachbessern-Buttons), da Du/Ihr/Sie eine Grundfunktion ist, kein
+      // optionales Extra. Sobald ein Entwurf steht (hier immer der Fall),
+      // loest ein Klick sofort eine Umformulierung aus.
+      kgVerdrahteAnredeChips(chatBereich.querySelector('.kg-followuprow .kg-anrede-chips'), chatBereich, bodyEl, zustand);
+      kgAktualisiereAnredeChips(zustand);
 
-    kgLadeNachbesserButtons(chatBereich.querySelector('.kg-quick-nachbessern'), (anweisung) => {
-      kgGeneriere({ modus: 'nachbessern', aktuellerEntwurf: zustand.aktuellerEntwurf, anweisung, vorlageId: zustand.aktuelleVorlageId }, chatBereich, bodyEl, zustand, anweisung);
-    });
+      kgLadeNachbesserButtons(chatBereich.querySelector('.kg-quick-nachbessern'), (anweisung) => {
+        kgGeneriere({ modus: 'nachbessern', aktuellerEntwurf: zustand.aktuellerEntwurf, anweisung, vorlageId: zustand.aktuelleVorlageId }, chatBereich, bodyEl, zustand, anweisung);
+      });
+    }
 
     const input = chatBereich.querySelector('.kg-followuprow input');
     kgSchuetzeFokus(input);
