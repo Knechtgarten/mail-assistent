@@ -501,6 +501,127 @@ async function kgLadeNachbesserButtons(container, onClick) {
   container.querySelectorAll('.kg-chip').forEach(chip => chip.addEventListener('click', () => onClick(chip.dataset.anweisung)));
 }
 
+// ----------------------------------------------------------------------------
+// Datums-Platzhalter (z.B. "[Datum]", "[Datum, Uhrzeit]") im fertigen Entwurf
+// klickbar machen - egal ob aus einer Vorlage oder frei von der KI erfunden.
+// Klick oeffnet ein kleines Auswahlfenster: entweder ein einzelnes Datum
+// eintragen (sofort, ohne KI-Aufruf) oder mehrere Termine aus dem Google-
+// Kalender vorschlagen (dann wird bei 2+ Terminen der umliegende Satz per
+// kurzem, eng eingegrenztem Nachbessern-Aufruf sprachlich passend gemacht).
+// ----------------------------------------------------------------------------
+const KG_DATUM_PLATZHALTER_REGEX = /\[([^\]<>]*Datum[^\]<>]*)\]/gi;
+
+function kgVerlinkeDatumPlatzhalter(html) {
+  let i = 0;
+  return html.replace(KG_DATUM_PLATZHALTER_REGEX, (match) => `<span class="kg-datum-platzhalter" data-slot="${i++}">${match}</span>`);
+}
+// Position des n-ten Platzhalters im ROHEN Text (nicht im HTML) - Reihenfolge
+// ist identisch, da kgEscape keine Klammern veraendert und daher weder
+// Anzahl noch Reihenfolge der Treffer verschiebt.
+function kgDatumPlatzhalterPosition(text, slot) {
+  const regex = new RegExp(KG_DATUM_PLATZHALTER_REGEX.source, 'gi');
+  let match, i = 0;
+  while ((match = regex.exec(text))) {
+    if (i === slot) return { start: match.index, end: match.index + match[0].length };
+    i++;
+  }
+  return null;
+}
+function kgFormatiereDatum(datumStr) {
+  const [jahr, monat, tag] = datumStr.split('-').map(Number);
+  const d = new Date(jahr, monat - 1, tag);
+  const wochentage = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+  const monate = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  return `${wochentage[d.getDay()]}, ${d.getDate()}. ${monate[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function kgOeffneDatumPopover(span, dieserText, chatBereich, bodyEl, zustand) {
+  document.querySelectorAll('.kg-datum-popover').forEach(p => p.remove());
+  const slot = parseInt(span.dataset.slot, 10);
+  const popover = document.createElement('div');
+  popover.className = 'kg-datum-popover';
+  popover.innerHTML = `
+    <div class="kg-datum-popover-optionen">
+      <button type="button" class="kg-datum-opt" data-opt="einzeln">Ein Datum eintragen</button>
+      <button type="button" class="kg-datum-opt" data-opt="kalender">Termin(e) aus Kalender vorschlagen</button>
+    </div>`;
+  document.body.appendChild(popover);
+  const rect = span.getBoundingClientRect();
+  popover.style.top = Math.round(rect.bottom + 4) + 'px';
+  popover.style.left = Math.round(rect.left) + 'px';
+
+  let kalenderAufraeumen = null;
+  const schliessen = () => {
+    if (kalenderAufraeumen) kalenderAufraeumen();
+    popover.remove();
+    document.removeEventListener('mousedown', ausserhalbKlick, true);
+  };
+  const ausserhalbKlick = (e) => { if (!popover.contains(e.target)) schliessen(); };
+  setTimeout(() => document.addEventListener('mousedown', ausserhalbKlick, true), 0);
+
+  const ersetzeImText = (ersatz, label) => {
+    const pos = kgDatumPlatzhalterPosition(dieserText, slot);
+    schliessen();
+    if (!pos) return;
+    zustand.aktuellerEntwurf = dieserText.slice(0, pos.start) + ersatz + dieserText.slice(pos.end);
+    kgZeigeEntwurf(chatBereich, bodyEl, zustand, label);
+  };
+
+  popover.querySelector('[data-opt="einzeln"]').addEventListener('click', () => {
+    popover.innerHTML = `<input type="date" class="kg-datum-input">`;
+    const input = popover.querySelector('.kg-datum-input');
+    input.addEventListener('change', () => {
+      if (!input.value) return;
+      const formatiert = kgFormatiereDatum(input.value);
+      ersetzeImText(formatiert, `Datum eingetragen: ${formatiert}`);
+    });
+    input.focus();
+    try { input.showPicker?.(); } catch (e) { /* nicht in jedem Browser vorhanden */ }
+  });
+
+  popover.querySelector('[data-opt="kalender"]').addEventListener('click', () => {
+    popover.innerHTML = kgZfKalenderBlockHtml({ titel: 'Termin(e) auswählen' }, 'datum-popover') + `
+      <div class="kg-zf-btns">
+        <button type="button" class="kg-zf-abbrechen">Abbrechen</button>
+        <button type="button" class="kg-zf-uebernehmen">Übernehmen</button>
+      </div>`;
+    const block = popover.querySelector('[data-zf-kalender-index="datum-popover"]');
+    block.querySelector('.kg-zf-kalender-oeffnen').addEventListener('click', kgKalenderOeffnen);
+    kgZfKalenderListeRendern(block);
+    if (chrome.storage?.onChanged) {
+      const listener = (changes, area) => { if (area === 'local' && changes[KG_KALENDER_STORAGE_KEY]) kgZfKalenderListeRendern(block); };
+      chrome.storage.onChanged.addListener(listener);
+      kalenderAufraeumen = () => chrome.storage.onChanged.removeListener(listener);
+    }
+    popover.querySelector('.kg-zf-abbrechen').addEventListener('click', schliessen);
+    popover.querySelector('.kg-zf-uebernehmen').addEventListener('click', async () => {
+      if (!chrome.storage?.local) return;
+      let liste;
+      try {
+        const daten = await chrome.storage.local.get(KG_KALENDER_STORAGE_KEY);
+        liste = daten[KG_KALENDER_STORAGE_KEY] || [];
+      } catch (e) { return; }
+      if (!liste.length) return;
+      await chrome.storage.local.set({ [KG_KALENDER_STORAGE_KEY]: [] });
+      if (liste.length === 1) {
+        ersetzeImText(liste[0].anzeige, `Termin eingetragen: ${liste[0].anzeige}`);
+        return;
+      }
+      // Mehrere Termine: erst grob als Liste einsetzen, dann den umliegenden
+      // Satz per eng eingegrenzter Nachbessern-Anweisung sprachlich passend
+      // machen lassen - der Rest des Texts darf sich dabei nicht aendern.
+      const pos = kgDatumPlatzhalterPosition(dieserText, slot);
+      schliessen();
+      if (!pos) return;
+      const platzhalterText = dieserText.slice(pos.start, pos.end);
+      const terminListe = liste.map(e => `- ${e.anzeige}`).join('\n');
+      const zwischenText = dieserText.slice(0, pos.start) + terminListe + dieserText.slice(pos.end);
+      const anweisung = `An der Stelle, wo vorher "${platzhalterText}" stand, steht jetzt eine Liste mit ${liste.length} vorgeschlagenen Terminen. Passe NUR den Satz direkt rund um diese Stelle sprachlich an, damit er zu mehreren Terminen passt (z.B. "an einem der folgenden Termine" statt einem einzelnen Datum). Der Rest des Mailtexts muss exakt gleich bleiben, nichts sonst umformulieren.`;
+      kgGeneriere({ modus: 'nachbessern', aktuellerEntwurf: zwischenText, anweisung, vorlageId: zustand.aktuelleVorlageId }, chatBereich, bodyEl, zustand, `${liste.length} Termine vorgeschlagen`);
+    });
+  });
+}
+
 function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
   // Chat-Verlauf: jede Version bleibt sichtbar (hoch-/runterscrollbar) statt
   // die vorherige zu ersetzen - so laesst sich bei Bedarf auch zu einer
@@ -564,13 +685,19 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
   const dieserText = zustand.aktuellerEntwurf;
   const aiDiv = document.createElement('div');
   aiDiv.className = 'kg-msg kg-ai kg-aktuell';
-  aiDiv.innerHTML = `<div class="kg-bubble">${kgMarkdownZuHtml(dieserText)}</div><button class="kg-diese-version">In Mail übernehmen</button>`;
+  aiDiv.innerHTML = `<div class="kg-bubble">${kgVerlinkeDatumPlatzhalter(kgMarkdownZuHtml(dieserText))}</div><button class="kg-diese-version">In Mail übernehmen</button>`;
   verlauf.appendChild(aiDiv);
   aiDiv.querySelector('.kg-diese-version').addEventListener('click', () => {
     zustand.aktuellerEntwurf = dieserText;
     kgSetzeBetreff(zustand.aktuellerBetreff);
     kgUebernehmeInMail(bodyEl, dieserText);
     kgSchliessePanel(zustand);
+  });
+  aiDiv.querySelectorAll('.kg-datum-platzhalter').forEach(span => {
+    span.addEventListener('click', (e) => {
+      e.stopPropagation();
+      kgOeffneDatumPopover(span, dieserText, chatBereich, bodyEl, zustand);
+    });
   });
 
   verlauf.scrollTop = verlauf.scrollHeight;
