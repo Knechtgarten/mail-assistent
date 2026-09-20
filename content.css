@@ -223,6 +223,26 @@
 }
 .kg-dunkel-weiter:hover { background: #D6E7F4; }
 
+/* Kundenanfragen-Popup: zwei Buttons-Spalten (statt einer Liste, da hier
+   deutlich mehr moegliche Antworten vorkommen als bei einer normalen
+   Rueckfrage) + dritte Info-Spalte mit Distanz. grid-auto-rows: 1fr auf
+   einem Container ohne fixe Hoehe gleicht Zeilenhoehen nur INNERHALB der
+   gleichen Zeile an, nicht ueber das ganze Raster. */
+.kg-ka-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+.kg-ka-buttons { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 7px; align-items: stretch; }
+.kg-ka-btn {
+  background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.35);
+  border-radius: 9px; padding: 8px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+  text-align: left; font-family: inherit; line-height: 1.3;
+}
+.kg-ka-btn:hover { background: rgba(255,255,255,.22); }
+.kg-ka-info { border-left: 1px solid rgba(255,255,255,.25); padding-left: 14px; }
+.kg-ka-info-label { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: rgba(255,255,255,.6); margin-bottom: 6px; }
+.kg-ka-info-zeile { font-size: 11.5px; margin-bottom: 8px; }
+.kg-ka-info-name { opacity: .7; }
+.kg-ka-info-wert { color: #D1DB5F; font-weight: 600; }
+.kg-ka-info-hinweis { border-top: 1px solid rgba(255,255,255,.2); padding-top: 8px; margin-top: 4px; font-size: 10.5px; line-height: 1.5; color: rgba(255,255,255,.8); }
+
 /* Felder eines Eingabe-Popups (Zusatzfenster-Typ "eingabe") - jedes mit
    eigenem Label darueber statt in einer Zeile mit Mikrofon wie die
    Ergaenzungs-Zeile. */

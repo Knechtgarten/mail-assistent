@@ -496,6 +496,11 @@ async function kgAntwortenStarten(scroll, bodyEl, container, zustand) {
       // uebereinander), nur dass die Buttons hier Vorlagen-Titel statt
       // vordefinierter Antwort-Zweige sind.
       kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand);
+    } else if (data.aktion === 'kundenanfrage') {
+      // Kundenanfragen-Topf: keine automatische Entscheidung, der Mitarbeiter
+      // waehlt manuell aus allen moeglichen Antworten - dafuer eigenes Layout
+      // mit zwei Buttons-Spalten + Info-Spalte (Distanz).
+      kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand);
     } else {
       kgZeigeErgaenzungImPopup(popup, data, scroll, bodyEl, zustand);
     }
@@ -536,6 +541,62 @@ function kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand) {
       const payload = data.aktion === 'auswahl'
         ? { modus: 'auswahl-antwort', vorlageTitel: btn.dataset.label, anweisung, mailInhalt: zustand.mailInhalt, mitarbeiterEmail: kgHoleMitarbeiterEmail() }
         : { modus: 'rueckfrage-antwort', vorlageId: data.vorlageId, antwortLabel: btn.dataset.label, anweisung, mailInhalt: zustand.mailInhalt, mitarbeiterEmail: kgHoleMitarbeiterEmail() };
+      try {
+        const text = await kgRufeApiStreamend(
+          payload,
+          (vollText) => {
+            if (!chatBereich) {
+              scroll.innerHTML = '<div class="kg-chat-bereich"></div>';
+              chatBereich = scroll.querySelector('.kg-chat-bereich');
+              chatBereich.innerHTML = '<div class="kg-msg kg-ai"><div class="kg-bubble kg-live-entwurf"></div></div>';
+              liveBubble = chatBereich.querySelector('.kg-live-entwurf');
+            }
+            liveBubble.innerHTML = kgMarkdownZuHtml(vollText);
+            chatBereich.scrollTop = chatBereich.scrollHeight;
+          }
+        );
+        zustand.aktuellerEntwurf = text.trim();
+        chatBereich.innerHTML = '';
+        kgZeigeEntwurf(chatBereich, bodyEl, zustand);
+      } catch (e) {
+        if (chatBereich) chatBereich.innerHTML = `<div class="kg-lade" style="color:#B4655F;">Fehler: ${kgEscape(e.message)}</div>`;
+        else popup.innerHTML = `<div class="kg-dunkel-text">Fehler: ${kgEscape(e.message)}</div>`;
+      }
+    });
+  });
+}
+
+// Kundenanfragen-Topf: keine feste Vorlage, sondern eine Liste aller
+// moeglichen Antworten (koennen 10-20 sein) - darum zwei Buttons-Spalten
+// statt einer Liste, plus eine dritte Info-Spalte mit der Fahrdistanz zu
+// Knechtgarten und allen Partnerbetrieben (falls die KI eine Kundenadresse
+// erkennen konnte) und dem admin-hinterlegten Hinweistext. Der Mitarbeiter
+// entscheidet komplett selbst, welche Antwort passt - keine Vorauswahl.
+function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
+  const zeigeInfo = !!(data.distanz || data.hinweistext);
+  const infoHtml = zeigeInfo ? `
+    <div class="kg-ka-info">
+      <div class="kg-ka-info-label">Distanz</div>
+      ${data.distanz?.eigene ? `<div class="kg-ka-info-zeile"><div class="kg-ka-info-name">Knechtgarten</div><div class="kg-ka-info-wert">${data.distanz.eigene.km} km · ${data.distanz.eigene.minuten} Min</div></div>` : ''}
+      ${(data.distanz?.partner || []).map(p => `<div class="kg-ka-info-zeile"><div class="kg-ka-info-name">${kgEscape(p.name)}</div><div class="kg-ka-info-wert">${p.km} km · ${p.minuten} Min</div></div>`).join('')}
+      ${data.hinweistext ? `<div class="kg-ka-info-hinweis">${kgEscape(data.hinweistext)}</div>` : ''}
+    </div>` : '';
+  const buttonsHtml = `<div class="kg-ka-buttons">${data.antworten.map(a => `<button type="button" class="kg-ka-btn" data-label="${kgEscape(a.label)}">${kgEscape(a.label)}</button>`).join('')}</div>`;
+
+  popup.innerHTML = `
+    <div class="kg-dunkel-frage">${kgEscape(data.titel)}</div>
+    ${zeigeInfo ? `<div class="kg-ka-layout">${buttonsHtml}${infoHtml}</div>` : buttonsHtml}
+    ${kgDunkelErgaenzungHtml('Optional: noch etwas ergänzen …')}`;
+  const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
+  kgAktiviereMikrofon(popup.querySelector('.kg-dunkel-micbtn'), ergaenzungFeld);
+  popup.querySelectorAll('.kg-ka-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const anweisung = ergaenzungFeld.value.trim() || undefined;
+      zustand.aktuelleVorlageId = data.vorlageId;
+      popup.innerHTML = `<div class="kg-dunkel-spinner"></div><div class="kg-dunkel-text">Einen Moment, ich bereite die Antwort vor …</div>`;
+      let chatBereich = null;
+      let liveBubble = null;
+      const payload = { modus: 'rueckfrage-antwort', vorlageId: data.vorlageId, antwortLabel: btn.dataset.label, anweisung, mailInhalt: zustand.mailInhalt, mitarbeiterEmail: kgHoleMitarbeiterEmail() };
       try {
         const text = await kgRufeApiStreamend(
           payload,
