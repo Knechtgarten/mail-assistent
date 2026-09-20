@@ -566,12 +566,15 @@ function kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   });
 }
 
-// Kundenanfragen-Topf: keine feste Vorlage, sondern eine Liste aller
-// moeglichen Antworten (koennen 10-20 sein) - darum zwei Buttons-Spalten
-// statt einer Liste, plus eine dritte Info-Spalte mit der Fahrdistanz zu
+// Kundenanfragen: kein Topf, keine Vorauswahl - eine flache Liste aller
+// Antwort-Vorlagen (koennen 10-20 sein), darum zwei Buttons-Spalten statt
+// einer Liste, plus eine dritte Info-Spalte mit der Fahrdistanz zu
 // Knechtgarten und allen Partnerbetrieben (falls die KI eine Kundenadresse
 // erkennen konnte) und dem admin-hinterlegten Hinweistext. Der Mitarbeiter
-// entscheidet komplett selbst, welche Antwort passt - keine Vorauswahl.
+// entscheidet komplett selbst, welche Antwort-Vorlage passt. Jede
+// Antwort-Vorlage ist eine vollwertige Vorlage (kann eigene Zusatzfenster
+// haben) - darum nach dem Streamen ueber kgZeigeAntwortenErgebnis geroutet,
+// genau wie ein normaler direkter Entwurf.
 function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   const zeigeInfo = !!(data.distanz || data.hinweistext);
   const infoHtml = zeigeInfo ? `
@@ -581,10 +584,10 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
       ${(data.distanz?.partner || []).map(p => `<div class="kg-ka-info-zeile"><div class="kg-ka-info-name">${kgEscape(p.name)}</div><div class="kg-ka-info-wert">${p.km} km · ${p.minuten} Min</div></div>`).join('')}
       ${data.hinweistext ? `<div class="kg-ka-info-hinweis">${kgEscape(data.hinweistext)}</div>` : ''}
     </div>` : '';
-  const buttonsHtml = `<div class="kg-ka-buttons">${data.antworten.map(a => `<button type="button" class="kg-ka-btn" data-label="${kgEscape(a.label)}">${kgEscape(a.label)}</button>`).join('')}</div>`;
+  const buttonsHtml = `<div class="kg-ka-buttons">${data.antworten.map(a => `<button type="button" class="kg-ka-btn" data-id="${kgEscape(a.id)}">${kgEscape(a.label)}</button>`).join('')}</div>`;
 
   popup.innerHTML = `
-    <div class="kg-dunkel-frage">${kgEscape(data.titel)}</div>
+    <div class="kg-dunkel-frage">Kundenanfrage</div>
     ${zeigeInfo ? `<div class="kg-ka-layout">${buttonsHtml}${infoHtml}</div>` : buttonsHtml}
     ${kgDunkelErgaenzungHtml('Optional: noch etwas ergänzen …')}`;
   const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
@@ -592,11 +595,11 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   popup.querySelectorAll('.kg-ka-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const anweisung = ergaenzungFeld.value.trim() || undefined;
-      zustand.aktuelleVorlageId = data.vorlageId;
+      const antwortInfo = data.antworten.find(a => a.id === btn.dataset.id);
       popup.innerHTML = `<div class="kg-dunkel-spinner"></div><div class="kg-dunkel-text">Einen Moment, ich bereite die Antwort vor …</div>`;
       let chatBereich = null;
       let liveBubble = null;
-      const payload = { modus: 'rueckfrage-antwort', vorlageId: data.vorlageId, antwortLabel: btn.dataset.label, anweisung, mailInhalt: zustand.mailInhalt, mitarbeiterEmail: kgHoleMitarbeiterEmail() };
+      const payload = { modus: 'auswahl-antwort', vorlageId: btn.dataset.id, anweisung, mailInhalt: zustand.mailInhalt, mitarbeiterEmail: kgHoleMitarbeiterEmail() };
       try {
         const text = await kgRufeApiStreamend(
           payload,
@@ -611,9 +614,11 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
             chatBereich.scrollTop = chatBereich.scrollHeight;
           }
         );
-        zustand.aktuellerEntwurf = text.trim();
         chatBereich.innerHTML = '';
-        kgZeigeEntwurf(chatBereich, bodyEl, zustand);
+        kgZeigeAntwortenErgebnis(scroll, bodyEl, zustand, {
+          text: text.trim(), vorlageId: btn.dataset.id,
+          zusatzfenster: antwortInfo?.zusatzfenster?.length ? antwortInfo.zusatzfenster : undefined,
+        });
       } catch (e) {
         if (chatBereich) chatBereich.innerHTML = `<div class="kg-lade" style="color:#B4655F;">Fehler: ${kgEscape(e.message)}</div>`;
         else popup.innerHTML = `<div class="kg-dunkel-text">Fehler: ${kgEscape(e.message)}</div>`;
