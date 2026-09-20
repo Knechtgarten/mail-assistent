@@ -247,6 +247,7 @@
 .kg-ka-info-name { opacity: .7; }
 .kg-ka-info-wert { color: #D1DB5F; font-weight: 600; }
 .kg-ka-info-hinweis { border-top: 1px solid rgba(255,255,255,.2); padding-top: 8px; margin-top: 4px; font-size: 10.5px; line-height: 1.5; color: rgba(255,255,255,.8); }
+.kg-ka-info-hinweis ul, .kg-ka-info-hinweis ol { margin: 3px 0 3px 16px; padding: 0; }
 
 /* Felder eines Eingabe-Popups (Zusatzfenster-Typ "eingabe") - jedes mit
    eigenem Label darueber statt in einer Zeile mit Mikrofon wie die
