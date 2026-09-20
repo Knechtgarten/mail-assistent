@@ -1185,32 +1185,50 @@ async function kgZfKalenderListeRendern(block) {
     });
   });
 }
+// Wert einer Spalte fuers Zusammenfassen formatieren - bei Zahl-Spalten mit
+// hinterlegter Einheit (z.B. "m2", "Meter") wird diese angehaengt, das fehlte
+// bisher komplett in der Zusammenfassung (nur im Eingabefeld selbst sichtbar).
+function kgZfWertMitEinheit(s, wert) {
+  if (!wert) return '';
+  const einheit = s.typ === 'zahl' && s.einheit ? ` ${s.einheit}` : '';
+  return `${wert}${einheit}`;
+}
 function kgZfSammleEintraege(tabelle, zf) {
   const spalten = (zf.mailassistent_zusatzfenster_spalte || []).slice().sort((a, b) => a.reihenfolge - b.reihenfolge);
   const zeigtAnzahl = zf.zeigt_anzahl !== false;
   const eintraege = [];
   tabelle.querySelectorAll('.kg-zf-zeile').forEach(zeile => {
-    // Ohne Anzahl-Spalte zaehlt jede Zeile mit ausgefuellter Position/erster
+    // Ohne Anzahl-Spalte zaehlt jede Zeile mit mindestens einer ausgefuellten
     // Spalte als Eintrag - es gibt kein "0x" mehr, das eine Zeile aussortieren
     // koennte.
     const anzahl = zeigtAnzahl ? (parseInt(zeile.querySelector('.kg-zf-anzahl').value, 10) || 0) : null;
     const praefix = zeigtAnzahl ? `${anzahl}x ` : '';
-    // Generische Zeile (keine Positionen definiert): keine eigene
-    // Positions-Bezeichnung vorhanden - die erste Spalte (z.B. "Artikel")
-    // uebernimmt diese Rolle, der Rest wird als Detail angehaengt.
+    // Generische Zeile (keine Positionen definiert, z.B. reine Materialangaben
+    // ohne eigenen "Artikelnamen"): OHNE Anzahl werden alle Spalten gleich-
+    // wertig als "Titel: Wert" aneinandergereiht. MIT Anzahl uebernimmt die
+    // erste Spalte (z.B. "Artikel") weiterhin die Rolle des Positionsnamens,
+    // der Rest wird in Klammern als Detail angehaengt (kompakter fuer
+    // "3x Deckenlampe (Farbe: Weiss)"-artige Faelle).
     if (zeile.classList.contains('kg-zf-generische-zeile')) {
       if (!spalten.length) return;
       const werte = spalten.map(s => {
         const feld = zeile.querySelector(`.kg-zf-spalte[data-spalte="${CSS.escape(s.titel)}"]`);
         return feld ? feld.value.trim() : '';
       });
+      if (!zeigtAnzahl) {
+        const teile = spalten.map((s, i) => werte[i] ? `${s.titel}: ${kgZfWertMitEinheit(s, werte[i])}` : null).filter(Boolean);
+        if (!teile.length) return;
+        eintraege.push(`- ${teile.join(' · ')}`);
+        return;
+      }
       const positionsname = werte[0];
-      if (!positionsname || (zeigtAnzahl && anzahl <= 0)) return;
+      if (!positionsname || anzahl <= 0) return;
+      const positionseinheit = spalten[0].typ === 'zahl' && spalten[0].einheit ? ` ${spalten[0].einheit}` : '';
       const details = spalten.slice(1)
-        .map((s, i) => werte[i + 1] ? `${s.titel}: ${werte[i + 1]}` : null)
+        .map((s, i) => werte[i + 1] ? `${s.titel}: ${kgZfWertMitEinheit(s, werte[i + 1])}` : null)
         .filter(Boolean)
         .join(', ');
-      eintraege.push(`- ${praefix}${positionsname}${details ? ' (' + details + ')' : ''}`);
+      eintraege.push(`- ${praefix}${positionsname}${positionseinheit}${details ? ' (' + details + ')' : ''}`);
       return;
     }
     const eigennameEl = zeile.querySelector('.kg-zf-eigenname');
@@ -1220,7 +1238,7 @@ function kgZfSammleEintraege(tabelle, zf) {
       .map(s => {
         const feld = zeile.querySelector(`.kg-zf-spalte[data-spalte="${CSS.escape(s.titel)}"]`);
         const wert = feld ? feld.value.trim() : '';
-        return wert ? `${s.titel}: ${wert}` : null;
+        return wert ? `${s.titel}: ${kgZfWertMitEinheit(s, wert)}` : null;
       })
       .filter(Boolean)
       .join(', ');
