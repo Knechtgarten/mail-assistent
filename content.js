@@ -580,21 +580,63 @@ function kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand) {
 // Antwort-Vorlage ist eine vollwertige Vorlage (kann eigene Zusatzfenster
 // haben) - darum nach dem Streamen ueber kgZeigeAntwortenErgebnis geroutet,
 // genau wie ein normaler direkter Entwurf.
+// Gemeinsame Erzeugungs-Routine fuer beide Button-Arten im Kundenanfragen-
+// Popup (grosse Antwort-Vorlagen-Buttons UND die kleinen Weiterleiten-
+// Buttons je Partnerbetrieb) - unterscheiden sich nur im Payload und ob es
+// Zusatzfenster geben kann.
+async function kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, payloadZusatz, zusatzfenster) {
+  const anweisung = ergaenzungFeld.value.trim() || undefined;
+  popup.innerHTML = `<div class="kg-dunkel-spinner"></div><div class="kg-dunkel-text">Einen Moment, ich bereite die Antwort vor …</div>`;
+  let chatBereich = null;
+  let liveBubble = null;
+  const payload = { modus: 'auswahl-antwort', anweisung, mailInhalt: zustand.mailInhalt, mitarbeiterEmail: kgHoleMitarbeiterEmail(), ...payloadZusatz };
+  try {
+    const text = await kgRufeApiStreamend(
+      payload,
+      (vollText) => {
+        if (!chatBereich) {
+          scroll.innerHTML = '<div class="kg-chat-bereich"></div>';
+          chatBereich = scroll.querySelector('.kg-chat-bereich');
+          chatBereich.innerHTML = '<div class="kg-msg kg-ai"><div class="kg-bubble kg-live-entwurf"></div></div>';
+          liveBubble = chatBereich.querySelector('.kg-live-entwurf');
+        }
+        liveBubble.innerHTML = kgMarkdownZuHtml(vollText);
+        chatBereich.scrollTop = chatBereich.scrollHeight;
+      }
+    );
+    chatBereich.innerHTML = '';
+    kgZeigeAntwortenErgebnis(scroll, bodyEl, zustand, {
+      text: text.trim(), vorlageId: payloadZusatz.vorlageId || null,
+      zusatzfenster: zusatzfenster?.length ? zusatzfenster : undefined,
+    });
+  } catch (e) {
+    if (chatBereich) chatBereich.innerHTML = `<div class="kg-lade" style="color:#B4655F;">Fehler: ${kgEscape(e.message)}</div>`;
+    else popup.innerHTML = `<div class="kg-dunkel-text">Fehler: ${kgEscape(e.message)}</div>`;
+  }
+}
 function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   const zeigeInfo = !!(data.distanz || data.hinweistext);
   const partnerListe = data.distanz?.partner || [];
-  // Von den Partnerbetrieben nur der naechstgelegene wird grUEn hervorgehoben
+  // Von den Partnerbetrieben nur der naechstgelegene wird gruen hervorgehoben
   // (Entscheidungshilfe: "der hier waere am naechsten") - die anderen bleiben
   // in der neutralen Textfarbe. Der eigene Standort (Knechtgarten) ist davon
-  // unabhaengig immer grUEn, unabhaengig vom Vergleich.
+  // unabhaengig immer gruen, unabhaengig vom Vergleich. Gleiches gilt fuer
+  // den kompakten Weiterleiten-Button: nur beim naechsten Partner gruen.
   const naechsterPartnerMinuten = partnerListe.length ? Math.min(...partnerListe.map(p => p.minuten)) : null;
+  const partnerZeileHtml = p => {
+    const istNaeher = p.minuten === naechsterPartnerMinuten;
+    const weiterleitenBtn = p.weiterleitungText
+      ? `<button type="button" class="kg-ka-weiterleiten-btn${istNaeher ? ' kg-ka-info-naeher' : ''}" data-partner-id="${kgEscape(p.id)}" title="Antwort mit Weiterleitungstext von ${kgEscape(p.name)} erstellen">Weiterleiten</button>`
+      : '<span></span>';
+    return `<span class="kg-ka-info-name">${kgEscape(p.name)}</span><span class="kg-ka-info-wert${istNaeher ? ' kg-ka-info-naeher' : ''}">${p.km} km · ${p.minuten} Min</span>${weiterleitenBtn}`;
+  };
   const infoHtml = zeigeInfo ? `
     <div class="kg-ka-info">
       <div class="kg-ka-info-label">Distanz</div>
       <div class="kg-ka-info-tabelle">
-        ${data.distanz?.eigene ? `<span class="kg-ka-info-name kg-ka-info-eigene-name">Knechtgarten</span><span class="kg-ka-info-wert kg-ka-info-eigene-wert">${data.distanz.eigene.km} km · ${data.distanz.eigene.minuten} Min</span>` : ''}
+        ${data.distanz?.eigene ? `<span class="kg-ka-info-name kg-ka-info-eigene-name">Knechtgarten</span><span class="kg-ka-info-wert kg-ka-info-eigene-wert">${data.distanz.eigene.km} km · ${data.distanz.eigene.minuten} Min</span><span></span>` : ''}
         ${data.distanz?.eigene && partnerListe.length ? '<span class="kg-ka-info-trenner"></span>' : ''}
-        ${partnerListe.map(p => `<span class="kg-ka-info-name">${kgEscape(p.name)}</span><span class="kg-ka-info-wert${p.minuten === naechsterPartnerMinuten ? ' kg-ka-info-naeher' : ''}">${p.km} km · ${p.minuten} Min</span>`).join('')}
+        ${partnerListe.map(partnerZeileHtml).join('')}
       </div>
       ${data.hinweistext ? `<div class="kg-ka-info-hinweis">${kgMarkdownZuHtml(data.hinweistext)}</div>` : ''}
     </div>` : '';
@@ -607,36 +649,15 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
   kgAktiviereMikrofon(popup.querySelector('.kg-dunkel-micbtn'), ergaenzungFeld);
   popup.querySelectorAll('.kg-ka-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const anweisung = ergaenzungFeld.value.trim() || undefined;
+    btn.addEventListener('click', () => {
       const antwortInfo = data.antworten.find(a => a.id === btn.dataset.id);
-      popup.innerHTML = `<div class="kg-dunkel-spinner"></div><div class="kg-dunkel-text">Einen Moment, ich bereite die Antwort vor …</div>`;
-      let chatBereich = null;
-      let liveBubble = null;
-      const payload = { modus: 'auswahl-antwort', vorlageId: btn.dataset.id, anweisung, mailInhalt: zustand.mailInhalt, mitarbeiterEmail: kgHoleMitarbeiterEmail() };
-      try {
-        const text = await kgRufeApiStreamend(
-          payload,
-          (vollText) => {
-            if (!chatBereich) {
-              scroll.innerHTML = '<div class="kg-chat-bereich"></div>';
-              chatBereich = scroll.querySelector('.kg-chat-bereich');
-              chatBereich.innerHTML = '<div class="kg-msg kg-ai"><div class="kg-bubble kg-live-entwurf"></div></div>';
-              liveBubble = chatBereich.querySelector('.kg-live-entwurf');
-            }
-            liveBubble.innerHTML = kgMarkdownZuHtml(vollText);
-            chatBereich.scrollTop = chatBereich.scrollHeight;
-          }
-        );
-        chatBereich.innerHTML = '';
-        kgZeigeAntwortenErgebnis(scroll, bodyEl, zustand, {
-          text: text.trim(), vorlageId: btn.dataset.id,
-          zusatzfenster: antwortInfo?.zusatzfenster?.length ? antwortInfo.zusatzfenster : undefined,
-        });
-      } catch (e) {
-        if (chatBereich) chatBereich.innerHTML = `<div class="kg-lade" style="color:#B4655F;">Fehler: ${kgEscape(e.message)}</div>`;
-        else popup.innerHTML = `<div class="kg-dunkel-text">Fehler: ${kgEscape(e.message)}</div>`;
-      }
+      kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { vorlageId: btn.dataset.id }, antwortInfo?.zusatzfenster);
+    });
+  });
+  popup.querySelectorAll('.kg-ka-weiterleiten-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { partnerbetriebId: btn.dataset.partnerId }, undefined);
     });
   });
 }
