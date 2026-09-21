@@ -525,7 +525,7 @@ function kgDunkelErgaenzungHtml(placeholder) {
   return `
     <div class="kg-dunkel-ergaenzung-row">
       <button type="button" class="kg-micbtn kg-dunkel-micbtn" title="Diktieren">${kgSvg(KG_ICON_MIC)}</button>
-      <input type="text" class="kg-dunkel-ergaenzung" placeholder="${kgEscape(placeholder)}">
+      <textarea rows="1" class="kg-dunkel-ergaenzung" placeholder="${kgEscape(placeholder)}"></textarea>
     </div>`;
 }
 
@@ -535,6 +535,7 @@ function kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand) {
     <div class="kg-dunkel-antworten">${data.antworten.map(a => `<button type="button" class="kg-dunkel-antwort" data-label="${kgEscape(a.label)}">${kgEscape(a.label)}</button>`).join('')}</div>
     ${kgDunkelErgaenzungHtml('Optional: noch etwas ergänzen …')}`;
   const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
+  kgAutoWachsen(ergaenzungFeld);
   kgAktiviereMikrofon(popup.querySelector('.kg-dunkel-micbtn'), ergaenzungFeld);
   popup.querySelectorAll('.kg-dunkel-antwort').forEach(btn => {
     btn.addEventListener('click', async () => {
@@ -657,6 +658,7 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
     ${zeigeInfo ? `<div class="kg-ka-layout">${buttonsHtml}${infoHtml}</div>` : buttonsHtml}
     ${kgDunkelErgaenzungHtml('Optional: noch etwas ergänzen …')}`;
   const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
+  kgAutoWachsen(ergaenzungFeld);
   kgAktiviereMikrofon(popup.querySelector('.kg-dunkel-micbtn'), ergaenzungFeld);
   popup.querySelectorAll('.kg-ka-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -686,6 +688,7 @@ function kgZeigeErgaenzungImPopup(popup, data, scroll, bodyEl, zustand) {
     ${kgDunkelErgaenzungHtml('Optional … (Enter für weiter)')}
     <button type="button" class="kg-dunkel-weiter">Weiter</button>`;
   const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
+  kgAutoWachsen(ergaenzungFeld);
   kgAktiviereMikrofon(popup.querySelector('.kg-dunkel-micbtn'), ergaenzungFeld);
   ergaenzungFeld.focus();
 
