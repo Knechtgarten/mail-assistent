@@ -160,9 +160,14 @@
    feldern). width:1% auf jeder Zelle ist ein etablierter CSS-Trick, der den
    Browser zwingt, jede Spalte auf ihre minimale Breite zu schrumpfen - die
    Tabelle wird dadurch nie breiter als noetig. */
-.kg-zf-tabelle { width: auto; border-collapse: collapse; font-size: 11px; table-layout: auto; }
-.kg-zf-tabelle th { width: 1%; text-align: left; color: #8B9097; font-weight: 600; padding: 0 14px 6px 0; white-space: nowrap; border-bottom: 1px solid #E1E5E9; }
-.kg-zf-tabelle td { width: 1%; padding: 5px 14px 5px 0; white-space: nowrap; border-bottom: 1px solid #F0F1F2; }
+/* !important auf allen dreien: Gmail hat vermutlich eine eigene globale
+   Tabellenregel (z.B. table-layout:fixed), die unsere Einstellung sonst
+   ueberschreibt - dadurch wuerden alle Spalten gleich breit, egal was
+   drinsteht (genau das beobachtete Symptom). Erzwingt unser Layout
+   unabhaengig von Gmails eigenem Stylesheet. */
+.kg-zf-tabelle { width: auto !important; border-collapse: collapse; font-size: 11px; table-layout: auto !important; }
+.kg-zf-tabelle th { width: 1% !important; text-align: left; color: #8B9097; font-weight: 600; padding: 0 14px 6px 0; white-space: nowrap; border-bottom: 1px solid #E1E5E9; }
+.kg-zf-tabelle td { width: 1% !important; padding: 5px 14px 5px 0; white-space: nowrap; border-bottom: 1px solid #F0F1F2; }
 .kg-zf-tabelle tr:last-child td { border-bottom: none; }
 .kg-zf-tabelle input[type="number"] { width: 42px; border: 1px solid #E1E5E9; border-radius: 5px; padding: 3px 5px; font-size: 11px; }
 .kg-zf-tabelle input[type="text"] { width: 100%; min-width: 60px; border: 1px solid #E1E5E9; border-radius: 5px; padding: 3px 5px; font-size: 11px; box-sizing: border-box; }
