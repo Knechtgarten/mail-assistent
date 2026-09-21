@@ -433,6 +433,25 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
 // Antworten: sofort automatisch Entwurf/Rueckfrage anhand der eingehenden
 // Mail erstellen - keine Chips.
 // ----------------------------------------------------------------------------
+// Betreff der eingehenden Mail (Gmail-Klasse "hP" fuer die Thread-Ueberschrift
+// - seit Jahren stabil, aber nicht offiziell dokumentiert). Wichtig, weil im
+// Betreff manchmal Angaben stehen (z.B. Namen), die im Mailtext selbst gar
+// nicht mehr vorkommen. Von bodyEl aus nach oben klettern und pro Ebene im
+// Teilbaum nach "h2.hP" suchen - findet garantiert die Ueberschrift des
+// gleichen Threads, auch wenn mehrere Mails/Fenster gleichzeitig offen sind.
+function kgHoleBetreffEingehend(bodyEl) {
+  let el = bodyEl;
+  let ebenen = 0;
+  while (el && ebenen < 80) {
+    const h2 = el.querySelector && el.querySelector('h2.hP');
+    if (h2 && (h2.textContent || '').trim()) return h2.textContent.trim();
+    el = el.parentElement;
+    ebenen++;
+  }
+  const global = document.querySelector('h2.hP');
+  return global ? (global.textContent || '').trim() : null;
+}
+
 function kgHoleMailInhalt(bodyEl, container) {
   // 1. Manche Antwortfenster haben den zitierten Verlauf direkt im Editierfeld
   //    (blockquote/.gmail_quote). Falls nicht (Gmail klappt das oft erst nach
@@ -450,7 +469,9 @@ function kgHoleMailInhalt(bodyEl, container) {
     }
   }
   if (!text) text = (bodyEl.textContent || '').trim();
-  return text || '(kein Mailinhalt gefunden)';
+  if (!text) return '(kein Mailinhalt gefunden)';
+  const betreff = kgHoleBetreffEingehend(bodyEl);
+  return betreff ? `Betreff: ${betreff}\n\n${text}` : text;
 }
 
 // Absender der Mail, auf die geantwortet wird - fuer den Express-Pfad bei
