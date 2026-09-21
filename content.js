@@ -452,6 +452,45 @@ function kgHoleBetreffEingehend(bodyEl) {
   return global ? (global.textContent || '').trim() : null;
 }
 
+// Container des ganzen Mail-Threads (ueber die Ueberschrift "h2.hP") - wird
+// sowohl fuer den Betreff als auch fuer die Von/An/Cc-Suche gebraucht, damit
+// bei mehreren gleichzeitig offenen Mails nicht der falsche Thread erwischt
+// wird.
+function kgFindeMailContainer(bodyEl) {
+  let el = bodyEl;
+  let ebenen = 0;
+  while (el && ebenen < 80) {
+    if (el.querySelector && el.querySelector('h2.hP')) return el;
+    el = el.parentElement;
+    ebenen++;
+  }
+  return null;
+}
+
+// Von/An/Cc-Personen der eingehenden Mail (Gmail markiert Absender- und
+// Empfaenger-Namen mit "email"/"name"-Attributen - gleiches stabile Muster
+// wie kgHoleAbsenderEmail). Wichtig, damit die KI z.B. bei einem Handwerker,
+// Architekten oder einer im Cc erwaehnten Person erkennt, wer zu welcher
+// Seite gehoert, statt das zu erraten. Cc-Empfaenger stehen in Gmail teils
+// erst nach Klick auf "Details" (Pfeil neben dem Absendernamen) vollstaendig
+// im DOM - wurde nicht geklickt, liefert das ggf. nur den Absender.
+function kgHoleEmpfaengerKontext(bodyEl) {
+  const container = kgFindeMailContainer(bodyEl);
+  if (!container) return [];
+  const kandidaten = Array.from(container.querySelectorAll('[email]'))
+    .filter(node => node !== bodyEl && !node.contains(bodyEl) && !bodyEl.contains(node));
+  const gesehen = new Set();
+  const liste = [];
+  for (const node of kandidaten) {
+    const email = (node.getAttribute('email') || '').trim();
+    if (!email || !email.includes('@') || gesehen.has(email.toLowerCase())) continue;
+    gesehen.add(email.toLowerCase());
+    const name = (node.getAttribute('name') || '').trim();
+    liste.push(name ? `${name} <${email}>` : email);
+  }
+  return liste;
+}
+
 function kgHoleMailInhalt(bodyEl, container) {
   // 1. Manche Antwortfenster haben den zitierten Verlauf direkt im Editierfeld
   //    (blockquote/.gmail_quote). Falls nicht (Gmail klappt das oft erst nach
@@ -470,8 +509,12 @@ function kgHoleMailInhalt(bodyEl, container) {
   }
   if (!text) text = (bodyEl.textContent || '').trim();
   if (!text) return '(kein Mailinhalt gefunden)';
+  const kopf = [];
   const betreff = kgHoleBetreffEingehend(bodyEl);
-  return betreff ? `Betreff: ${betreff}\n\n${text}` : text;
+  if (betreff) kopf.push(`Betreff: ${betreff}`);
+  const empfaenger = kgHoleEmpfaengerKontext(bodyEl);
+  if (empfaenger.length) kopf.push(`Beteiligte Personen laut Mailkopf (Von/An/Cc): ${empfaenger.join(', ')}`);
+  return kopf.length ? `${kopf.join('\n')}\n\n${text}` : text;
 }
 
 // Absender der Mail, auf die geantwortet wird - fuer den Express-Pfad bei
