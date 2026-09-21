@@ -179,12 +179,17 @@
 .kg-zf-kalender-hinweis a { color: #323E4E; }
 .kg-zf-kalender-oeffnen { display: block; background: #323E4E; color: #fff; border: none; border-radius: 12px; padding: 6px 12px; font-size: 11.5px; font-weight: 700; cursor: pointer; margin-bottom: 6px; }
 
-.kg-followuprow { display: flex; align-items: center; gap: 5px; margin-top: 9px; }
-.kg-followuprow input {
-  flex: 1; border: 1px solid #E1E5E9; border-radius: 14px; padding: 6px 12px;
-  font: inherit; font-size: 11.5px; background: #fff; color: #232B35;
+.kg-followuprow { display: flex; align-items: flex-start; gap: 5px; margin-top: 9px; }
+.kg-followuprow .kg-micbtn { flex-shrink: 0; }
+/* Textarea statt einzeiligem Input - waechst beim Diktieren/Tippen nach
+   unten mit, statt laengeren Text seitlich abzuschneiden (gleicher
+   Mechanismus wie beim Ergaenzungsfeld im dunklen Popup, siehe kgAutoWachsen). */
+.kg-followuprow textarea {
+  flex: 1; border: 1px solid #E1E5E9; border-radius: 10px; padding: 6px 12px;
+  font: inherit; font-size: 11.5px; line-height: 1.4; background: #fff; color: #232B35;
+  display: block; resize: none; overflow-y: auto; box-sizing: border-box; max-height: 160px;
 }
-.kg-followuprow input:focus { outline: none; border-color: #323E4E; }
+.kg-followuprow textarea:focus { outline: none; border-color: #323E4E; }
 
 .kg-lade { color: #8B9097; font-size: 11.5px; padding: 6px 0; }
 

@@ -976,7 +976,7 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
       <div class="kg-followuprow">
         ${zustand.istIntern ? '' : `<div class="kg-anrede-chips">${kgAnredeChipsHtml()}</div>`}
         <button class="kg-micbtn" title="Diktieren">${kgSvg(KG_ICON_MIC)}</button>
-        <input type="text" placeholder="Nachbessern oder eigene Anweisung…">
+        <textarea rows="1" placeholder="Nachbessern oder eigene Anweisung…"></textarea>
       </div>`);
     verlauf = chatBereich.querySelector('.kg-verlauf');
 
@@ -993,13 +993,16 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
       });
     }
 
-    const input = chatBereich.querySelector('.kg-followuprow input');
+    const input = chatBereich.querySelector('.kg-followuprow textarea');
+    kgAutoWachsen(input);
     kgSchuetzeFokus(input);
     input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && input.value.trim()) {
+      if (e.key === 'Enter' && !e.shiftKey && input.value.trim()) {
+        e.preventDefault();
         const text = input.value.trim();
         kgGeneriere({ modus: 'nachbessern', aktuellerEntwurf: zustand.aktuellerEntwurf, anweisung: text, vorlageId: zustand.aktuelleVorlageId }, chatBereich, bodyEl, zustand, text);
         input.value = '';
+        input.dispatchEvent(new Event('input'));
       }
     });
     kgAktiviereMikrofon(chatBereich.querySelector('.kg-followuprow .kg-micbtn'), input);
