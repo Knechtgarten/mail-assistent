@@ -571,12 +571,11 @@ async function kgAntwortenStarten(scroll, bodyEl, container, zustand) {
       // waehlt manuell aus allen moeglichen Antworten - dafuer eigenes Layout
       // mit zwei Buttons-Spalten + Info-Spalte (Distanz).
       kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand);
-    } else if (data.aktion === 'unterkategorie') {
-      // Mailkategorien-Umbau Schritt 3c: eine Unterkategorie mit mehreren
-      // gleichwertigen einfachen Vorlagen (ersetzt die alten "Vorlage mit
-      // Rueckfrage"-Faelle) - KI erkennt nur die Unterkategorie, der
-      // Mitarbeiter waehlt manuell die passende Vorlage aus.
-      kgZeigeUnterkategorieImPopup(popup, data, scroll, bodyEl, zustand);
+    } else if (data.aktion === 'zweig') {
+      // Ast/Zweig-Modell: ein Zweig mit Aktionstyp "Mitarbeiter entscheidet"
+      // - KI erkennt nur den Zweig, der Mitarbeiter waehlt manuell die
+      // passende Vorlage aus (frage_mitarbeiter erscheint als Ueberschrift).
+      kgZeigeZweigImPopup(popup, data, scroll, bodyEl, zustand);
     } else if (istIntern) {
       // Interne Kollegen-Mail: kein "noch was ergaenzen?"-Zwischenschritt,
       // direkt zum fertigen (knappen) Entwurf.
@@ -690,14 +689,15 @@ async function kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungF
     else popup.innerHTML = `<div class="kg-dunkel-text">Fehler: ${kgEscape(e.message)}</div>`;
   }
 }
-// Unterkategorie-Fenster (Mailkategorien-Umbau Schritt 3c): wie
-// kgZeigeRueckfrageImPopup, aber die Buttons sind eigenstaendige Vorlagen
-// (data.antworten[].id) statt Zweige EINER Vorlage - darum ueber
-// kgKaGeneriereUndZeige (auswahl-antwort mit vorlageId) statt
-// rueckfrage-antwort erzeugt.
-function kgZeigeUnterkategorieImPopup(popup, data, scroll, bodyEl, zustand) {
+// Zweig-Fenster (Ast/Zweig-Modell): wie kgZeigeRueckfrageImPopup, aber die
+// Buttons sind eigenstaendige Vorlagen (data.antworten[].id) statt Zweige
+// EINER Vorlage - darum ueber kgKaGeneriereUndZeige (auswahl-antwort mit
+// vorlageId) statt rueckfrage-antwort erzeugt. Ueberschrift ist die vom Admin
+// hinterlegte "Frage an den Mitarbeiter" (frage_mitarbeiter), falls schon
+// erfasst - sonst als Rueckfall der Zweig-Titel.
+function kgZeigeZweigImPopup(popup, data, scroll, bodyEl, zustand) {
   popup.innerHTML = `
-    <div class="kg-dunkel-frage">${kgEscape(data.titel)}</div>
+    <div class="kg-dunkel-frage">${kgEscape(data.frage || data.titel)}</div>
     <div class="kg-dunkel-antworten">${data.antworten.map(a => `<button type="button" class="kg-dunkel-antwort" data-id="${kgEscape(a.id)}">${kgEscape(a.label)}</button>`).join('')}</div>
     ${kgDunkelErgaenzungHtml('Optional: noch etwas ergänzen …')}`;
   const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
