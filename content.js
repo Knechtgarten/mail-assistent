@@ -580,14 +580,6 @@ async function kgAntwortenStarten(scroll, bodyEl, container, zustand) {
 
   try {
     const data = await kgRufeApiAuf({ modus: 'antworten', mailInhalt: zustand.mailInhalt, intern: istIntern, mitarbeiterEmail: kgHoleMitarbeiterEmail() });
-    // TEMPORAERES DEBUGGING (wieder entfernen, sobald die Kundenanfrage-
-    // Erkennung sicher funktioniert) - zeigt direkt in Gmail (kein DevTools
-    // noetig) was erkannt wurde. Als Geschwister von .kg-scroll eingefuegt,
-    // damit es beim naechsten scroll.innerHTML-Wechsel nicht verschwindet.
-    const debugBox = document.createElement('div');
-    debugBox.style.cssText = 'background:#fff3cd;border:1px solid #d4a72c;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:11px;font-family:monospace;white-space:pre-wrap;max-height:260px;overflow:auto;';
-    debugBox.textContent = 'DEBUG (temporär)\nabsender: ' + absender + '\nistIntern: ' + istIntern + '\nmailInhalt (erste 400 Zeichen):\n' + (zustand.mailInhalt || '').slice(0, 400) + '\n\nAntwort vom Server:\n' + JSON.stringify(data, null, 2);
-    scroll.parentElement.insertBefore(debugBox, scroll);
     if (data.aktion === 'rueckfrage' || data.aktion === 'auswahl') {
       // "auswahl": die KI war sich zwischen zwei aehnlichen Vorlagen unsicher
       // - gleiches Popup wie bei einer echten Rueckfrage (Frage + Buttons
