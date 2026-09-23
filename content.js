@@ -770,10 +770,11 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   });
 }
 
-// Keine Rueckfrage-Vorlage getroffen - der Entwurf steht als Text schon
-// fest (ein-Schritt-Generierung), darum wird eine spaetere Ergaenzung hier
-// als kurzer Nachbessern-Aufruf auf diesem Text angewendet, statt alles neu
-// zu generieren.
+// Klassifizierung liefert bei Fall 1 nur noch die Einordnung (vorlageId oder
+// null fuer Auffangfall), noch KEINEN Text - der wird erst hier erzeugt,
+// gestreamt ueber kgKaGeneriereUndZeige (gleicher Mechanismus wie bei Zweig-/
+// Kundenanfrage-Antworten), damit der Text ueberall Wort fuer Wort erscheint
+// statt dass man auf den kompletten Block warten muss.
 function kgZeigeErgaenzungImPopup(popup, data, scroll, bodyEl, zustand) {
   popup.innerHTML = `
     <div class="kg-dunkel-text">Möchtest du noch etwas ergänzen?</div>
@@ -784,16 +785,9 @@ function kgZeigeErgaenzungImPopup(popup, data, scroll, bodyEl, zustand) {
   kgAktiviereMikrofon(popup.querySelector('.kg-dunkel-micbtn'), ergaenzungFeld);
   ergaenzungFeld.focus();
 
-  const weiter = async () => {
-    const anweisung = ergaenzungFeld.value.trim();
-    if (!anweisung) { kgZeigeAntwortenErgebnis(scroll, bodyEl, zustand, data); return; }
-    popup.innerHTML = `<div class="kg-dunkel-spinner"></div><div class="kg-dunkel-text">Einen Moment, ich passe die Antwort an …</div>`;
-    try {
-      const ergebnis = await kgRufeApiAuf({ modus: 'nachbessern', aktuellerEntwurf: data.text, anweisung, vorlageId: data.vorlageId, mitarbeiterEmail: kgHoleMitarbeiterEmail() });
-      kgZeigeAntwortenErgebnis(scroll, bodyEl, zustand, { ...data, text: ergebnis.text });
-    } catch (e) {
-      popup.innerHTML = `<div class="kg-dunkel-text">Fehler: ${kgEscape(e.message)}</div>`;
-    }
+  const weiter = () => {
+    const payloadZusatz = data.vorlageId ? { vorlageId: data.vorlageId } : { auffangfall: true };
+    kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, payloadZusatz, data.zusatzfenster);
   };
   popup.querySelector('.kg-dunkel-weiter').addEventListener('click', weiter);
   ergaenzungFeld.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); weiter(); } });
