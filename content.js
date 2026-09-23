@@ -566,10 +566,11 @@ async function kgAntwortenStarten(scroll, bodyEl, container, zustand) {
       // uebereinander), nur dass die Buttons hier Vorlagen-Titel statt
       // vordefinierter Antwort-Zweige sind.
       kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand);
-    } else if (data.aktion === 'kundenanfrage') {
-      // Kundenanfragen-Topf: keine automatische Entscheidung, der Mitarbeiter
-      // waehlt manuell aus allen moeglichen Antworten - dafuer eigenes Layout
-      // mit zwei Buttons-Spalten + Info-Spalte (Distanz).
+    } else if (data.aktion === 'zweig' && data.hatDistanzlogik) {
+      // Zweig mit Ast-Funktion "distanzlogik" (z.B. Kundenanfragen): keine
+      // automatische Entscheidung, der Mitarbeiter waehlt manuell aus allen
+      // moeglichen Antworten - dafuer eigenes Layout mit zwei Buttons-Spalten
+      // + Info-Spalte (Distanz).
       kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand);
     } else if (data.aktion === 'zweig') {
       // Ast/Zweig-Modell: ein Zweig mit Aktionstyp "Mitarbeiter entscheidet"
@@ -745,7 +746,7 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   const buttonsHtml = `<div class="kg-ka-buttons">${data.antworten.map(a => `<button type="button" class="kg-ka-btn" data-id="${kgEscape(a.id)}">${kgEscape(a.label)}</button>`).join('')}</div>`;
 
   popup.innerHTML = `
-    <div class="kg-dunkel-frage">Kundenanfrage</div>
+    <div class="kg-dunkel-frage">${kgEscape(data.frage || data.titel || 'Kundenanfrage')}</div>
     ${zeigeInfo ? `<div class="kg-ka-layout">${buttonsHtml}${infoHtml}</div>` : buttonsHtml}
     ${kgDunkelErgaenzungHtml('Optional: noch etwas ergänzen …')}`;
   const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
