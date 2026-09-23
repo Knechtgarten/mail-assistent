@@ -267,22 +267,26 @@ function kgInitialisiere(bodyEl, container, toolbar) {
 
     // Gmail verwendet fuer ein neues Compose-Fenster manchmal denselben
     // DOM-Container weiter, den vorher schon ein anderes Fenster (z.B. ein
-    // Antwort-Entwurf) benutzt hat - darum bei jedem Oeffnen frisch pruefen,
-    // ob es sich noch um dieselbe Fensterart handelt wie beim letzten Laden.
-    // Falls nicht: alten Zustand/Inhalt verwerfen und neu aufbauen.
+    // Antwort-Entwurf ODER ein fruehers, bereits geschlossenes "Neue
+    // Nachricht"-Fenster) benutzt hat - darum bei jedem Oeffnen frisch pruefen.
+    // Bei "verfassen" IMMER neu aufbauen (kein Vorlagen-Cache über einzelne
+    // Fenster hinweg): liste-verfassen ist ein schneller, reiner Lese-Aufruf
+    // ohne KI, das Risiko eines veralteten/falschen Entwurfs aus einem
+    // frueheren, wiederverwendeten Fenster wiegt schwerer als der minimale
+    // Mehraufwand. Bei "antworten" bleibt der Cache bestehen (echter KI-
+    // Aufruf, nicht kostenlos) - dort nur bei einem Wechsel der Fensterart
+    // zuruecksetzen.
     const istVerfassenJetzt = kgIstVerfassenFenster(container);
     const typJetzt = istVerfassenJetzt ? 'verfassen' : 'antworten';
-    if (panel.dataset.geladen && panel.dataset.typ !== typJetzt) {
-      delete panel.dataset.geladen;
+    const mussNeuLaden = !panel.dataset.geladen || panel.dataset.typ !== typJetzt || istVerfassenJetzt;
+    if (mussNeuLaden) {
+      panel.dataset.geladen = '1';
+      panel.dataset.typ = typJetzt;
       zustand.aktuellerEntwurf = null;
       zustand.aktuelleVorlageId = null;
       zustand.aktuellerBetreff = null;
       zustand.anrede = null;
       zustand.mailInhalt = null;
-    }
-    if (!panel.dataset.geladen) {
-      panel.dataset.geladen = '1';
-      panel.dataset.typ = typJetzt;
       if (istVerfassenJetzt) await kgZeigeVerfassenChips(panel, bodyEl, zustand);
       else await kgStarteAntworten(panel, bodyEl, container, zustand);
     }
@@ -491,21 +495,41 @@ function kgHoleEmpfaengerKontext(bodyEl) {
   return liste;
 }
 
+// Findet innerhalb eines Threads (mehrere Nachrichten moeglich, z.B.
+// Kundenanfrage + spaetere interne Weiterleitung) das Element, das selector
+// matcht und im Dokument UNMITTELBAR VOR bodyEl liegt - bewusst NICHT "das
+// letzte im ganzen Thread", sonst wuerde beim Antworten auf eine AELTERE
+// Nachricht faelschlich der Inhalt/Absender einer JUENGEREN Nachricht im
+// gleichen Thread genommen (z.B. eine interne Weiterleitung, die zeitlich
+// nach der eigentlichen Kundenanfrage kam, aber im Thread weiter unten,
+// also spaeter im DOM steht). scope grenzt zusaetzlich auf den aktuellen
+// Thread/Container ein, damit bei mehreren gleichzeitig offenen Mails nicht
+// eine ganz andere Konversation erwischt wird. nichtLeer (optional):
+// Kandidaten ohne brauchbaren Inhalt werden uebersprungen, der naechst-
+// vorherige wird dann versucht.
+function kgFindeVorherigesElement(bodyEl, selector, scope, nichtLeer) {
+  const kandidaten = Array.from((scope || document).querySelectorAll(selector))
+    .filter(el => el !== bodyEl && !el.contains(bodyEl) && !bodyEl.contains(el));
+  const davor = kandidaten.filter(el => (el.compareDocumentPosition(bodyEl) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
+  const liste = davor.length ? davor : kandidaten; // Rueckfall, falls das Antwortfeld doch vor allen Kandidaten steht
+  for (let i = liste.length - 1; i >= 0; i--) {
+    if (!nichtLeer || nichtLeer(liste[i])) return liste[i];
+  }
+  return null;
+}
+
 function kgHoleMailInhalt(bodyEl, container) {
   // 1. Manche Antwortfenster haben den zitierten Verlauf direkt im Editierfeld
   //    (blockquote/.gmail_quote). Falls nicht (Gmail klappt das oft erst nach
-  //    Klick auf "..." auf), 2. stattdessen die zuletzt angezeigte Nachricht
-  //    im Thread darueber suchen (Gmail-Klasse "a3s" fuer den reinen
-  //    Nachrichtentext - seit Jahren stabil, aber nicht offiziell dokumentiert).
+  //    Klick auf "..." auf), 2. stattdessen die Nachricht direkt darueber im
+  //    Thread suchen (Gmail-Klasse "a3s" fuer den reinen Nachrichtentext -
+  //    seit Jahren stabil, aber nicht offiziell dokumentiert).
   const zitat = bodyEl.querySelector('blockquote, .gmail_quote');
   let text = ((zitat ? zitat.textContent : '') || '').trim();
   if (!text) {
-    const nachrichten = Array.from(document.querySelectorAll('div.a3s.aiL, div.a3s'))
-      .filter(el => el !== bodyEl && !el.contains(bodyEl) && !bodyEl.contains(el));
-    for (let i = nachrichten.length - 1; i >= 0; i--) {
-      const t = (nachrichten[i].textContent || '').trim();
-      if (t) { text = t; break; }
-    }
+    const threadContainer = kgFindeMailContainer(bodyEl);
+    const nachricht = kgFindeVorherigesElement(bodyEl, 'div.a3s.aiL, div.a3s', threadContainer, el => (el.textContent || '').trim());
+    text = nachricht ? (nachricht.textContent || '').trim() : '';
   }
   if (!text) text = (bodyEl.textContent || '').trim();
   if (!text) return '(kein Mailinhalt gefunden)';
@@ -521,13 +545,9 @@ function kgHoleMailInhalt(bodyEl, container) {
 // internen Mails (@knechtgarten.ch). Gmail markiert den Absender-Namen mit
 // einem "email"-Attribut (aehnlich stabil wie die "a3s"-Klasse oben).
 function kgHoleAbsenderEmail(bodyEl) {
-  const kandidaten = Array.from(document.querySelectorAll('[email]'))
-    .filter(el => el !== bodyEl && !el.contains(bodyEl) && !bodyEl.contains(el));
-  for (let i = kandidaten.length - 1; i >= 0; i--) {
-    const email = kandidaten[i].getAttribute('email');
-    if (email && email.includes('@')) return email;
-  }
-  return null;
+  const threadContainer = kgFindeMailContainer(bodyEl);
+  const el = kgFindeVorherigesElement(bodyEl, '[email]', threadContainer, e => (e.getAttribute('email') || '').includes('@'));
+  return el ? el.getAttribute('email') : null;
 }
 
 // Direkt beim Oeffnen startet automatisch die Klassifizierung (kein
