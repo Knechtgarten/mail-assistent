@@ -580,6 +580,9 @@ async function kgAntwortenStarten(scroll, bodyEl, container, zustand) {
 
   try {
     const data = await kgRufeApiAuf({ modus: 'antworten', mailInhalt: zustand.mailInhalt, intern: istIntern, mitarbeiterEmail: kgHoleMitarbeiterEmail() });
+    // TEMPORAERES DEBUGGING (wieder entfernen, sobald die Kundenanfrage-
+    // Erkennung sicher funktioniert) - zeigt exakt, was erkannt wurde.
+    console.log('[Mail-Assistent DEBUG] absender:', absender, '| istIntern:', istIntern, '| mailInhalt:', zustand.mailInhalt, '| Antwort vom Server:', data);
     if (data.aktion === 'rueckfrage' || data.aktion === 'auswahl') {
       // "auswahl": die KI war sich zwischen zwei aehnlichen Vorlagen unsicher
       // - gleiches Popup wie bei einer echten Rueckfrage (Frage + Buttons
