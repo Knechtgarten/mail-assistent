@@ -766,7 +766,7 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   });
   popup.querySelector('.kg-ka-absagen-btn')?.addEventListener('click', (e) => {
     e.stopPropagation();
-    kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { eigeneAbsage: true }, undefined);
+    kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { eigeneAbsage: true, astId: data.astId }, undefined);
   });
 }
 
