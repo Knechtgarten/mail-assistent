@@ -393,7 +393,10 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
       // oeffnet (siehe kgVerlinkePlatzhalter/kgOeffneDatumPopover).
       const kalenderListe = zusatzfensterListe.filter(zf => zf.typ === 'kalender');
       const uebrigeListe = zusatzfensterListe.filter(zf => zf.typ !== 'kalender');
-      if (vorlage) zustand.kalenderPlatzhalter = kalenderListe.map(zf => zf.platzhalter);
+      if (vorlage) {
+        zustand.kalenderPlatzhalter = kalenderListe.map(zf => zf.platzhalter);
+        zustand.kalenderMitUhrzeit = kalenderListe.some(zf => zf.mit_uhrzeit);
+      }
       if (vorlage && uebrigeListe.length) {
         // Strukturierte Eingabemaske(n) (z.B. Bestell-Tabelle) zuerst zeigen -
         // die daraus gebaute Liste ersetzt den jeweiligen Platzhalter direkt,
@@ -949,6 +952,13 @@ function kgFormatiereDatum(datumStr) {
   const monate = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
   return `${wochentage[d.getDay()]}, ${d.getDate()}. ${monate[d.getMonth()]} ${d.getFullYear()}`;
 }
+// Wert eines <input type="datetime-local"> ("2026-09-26T14:30") formatieren -
+// Wochentag/Datum wie kgFormatiereDatum, zusaetzlich die Uhrzeit dahinter.
+function kgFormatiereDatumUhrzeit(datumZeitStr) {
+  const [datumTeil, zeitTeil] = datumZeitStr.split('T');
+  const datumFormatiert = kgFormatiereDatum(datumTeil);
+  return zeitTeil ? `${datumFormatiert}, ${zeitTeil} Uhr` : datumFormatiert;
+}
 
 function kgOeffneDatumPopover(span, dieserText, chatBereich, bodyEl, zustand) {
   document.querySelectorAll('.kg-datum-popover').forEach(p => p.remove());
@@ -986,11 +996,12 @@ function kgOeffneDatumPopover(span, dieserText, chatBereich, bodyEl, zustand) {
   };
 
   popover.querySelector('[data-opt="einzeln"]').addEventListener('click', () => {
-    popover.innerHTML = `<input type="date" class="kg-datum-input">`;
+    const mitUhrzeit = !!zustand.kalenderMitUhrzeit;
+    popover.innerHTML = `<input type="${mitUhrzeit ? 'datetime-local' : 'date'}" class="kg-datum-input">`;
     const input = popover.querySelector('.kg-datum-input');
     input.addEventListener('change', () => {
       if (!input.value) return;
-      const formatiert = kgFormatiereDatum(input.value);
+      const formatiert = mitUhrzeit ? kgFormatiereDatumUhrzeit(input.value) : kgFormatiereDatum(input.value);
       ersetzeImText(formatiert, `Datum eingetragen: ${formatiert}`);
     });
     // Bewusst KEIN automatisches input.showPicker() mehr - das hat den
