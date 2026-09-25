@@ -993,8 +993,12 @@ function kgOeffneDatumPopover(span, dieserText, chatBereich, bodyEl, zustand) {
       const formatiert = kgFormatiereDatum(input.value);
       ersetzeImText(formatiert, `Datum eingetragen: ${formatiert}`);
     });
+    // Bewusst KEIN automatisches input.showPicker() mehr - das hat den
+    // natuerlichen Datums-Eingabemodus blockiert (Tippen der Ziffern ging
+    // nicht mehr, nur noch der Klick auf das Kalender-Icon). Ohne
+    // automatisches Oeffnen funktionieren beide Wege wie erwartet: direkt
+    // Ziffern eintippen ODER auf das Icon klicken.
     input.focus();
-    try { input.showPicker?.(); } catch (e) { /* nicht in jedem Browser vorhanden */ }
   });
 
   popover.querySelector('[data-opt="kalender"]').addEventListener('click', () => {
