@@ -385,12 +385,21 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
       const vorlage = vorlagen.find(v => v.id === chip.dataset.id);
       if (vorlage) zustand.anhaenge = vorlage.anhaenge || null;
       const zusatzfensterListe = vorlage ? kgZusatzfensterVon(vorlage) : [];
-      if (vorlage && zusatzfensterListe.length) {
+      // Termin-/Kalender-Zusatzfenster bekommen KEIN eigenes Vorab-Pop-up mehr
+      // (das war umstaendlich - erst ein Fenster oeffnen, um dann erst den
+      // Entwurf zu erstellen). Stattdessen bleibt der Platzhalter direkt im
+      // fertigen Entwurf stehen und wird dort - wie beim frueheren Tool - zu
+      // einem klickbaren Button, der sofort das Datums-/Kalender-Popover
+      // oeffnet (siehe kgVerlinkePlatzhalter/kgOeffneDatumPopover).
+      const kalenderListe = zusatzfensterListe.filter(zf => zf.typ === 'kalender');
+      const uebrigeListe = zusatzfensterListe.filter(zf => zf.typ !== 'kalender');
+      if (vorlage) zustand.kalenderPlatzhalter = kalenderListe.map(zf => zf.platzhalter);
+      if (vorlage && uebrigeListe.length) {
         // Strukturierte Eingabemaske(n) (z.B. Bestell-Tabelle) zuerst zeigen -
         // die daraus gebaute Liste ersetzt den jeweiligen Platzhalter direkt,
         // ganz ohne KI-Aufruf (die Daten sind schon vollstaendig strukturiert).
-        const eingabeListe = zusatzfensterListe.filter(zf => zf.typ === 'eingabe');
-        const andereListe = zusatzfensterListe.filter(zf => zf.typ !== 'eingabe');
+        const eingabeListe = uebrigeListe.filter(zf => zf.typ === 'eingabe');
+        const andereListe = uebrigeListe.filter(zf => zf.typ !== 'eingabe');
         const opts = { vorlageId: vorlage.id, betreff: vorlage.betreff, titelLabel: `Vorlage: ${vorlage.titel}` };
         if (eingabeListe.length) {
           kgZeigeEingabePopup(eingabeListe, andereListe, vorlage.inhalt || '', chatBereich, bodyEl, zustand, opts);
@@ -407,7 +416,6 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
         zustand.aktuellerEntwurf = vorlage.inhalt;
         zustand.aktuelleVorlageId = vorlage.id;
         if (vorlage.betreff) zustand.aktuellerBetreff = vorlage.betreff;
-        zustand.anhaenge = vorlage.anhaenge || null;
         kgZeigeEntwurf(chatBereich, bodyEl, zustand, `Vorlage: ${vorlage.titel}`);
       } else {
         // Entweder keine reine Express-Vorlage, oder eine Anrede-Praeferenz
@@ -889,17 +897,32 @@ async function kgLadeNachbesserButtons(container, onClick) {
 //                Wert direkt (ohne Klammern) und bleibt trotzdem klickbar/
 //                aenderbar, damit sichtbar bleibt, wo die KI etwas ergaenzt
 //                hat.
-// [ZF:...] wird bewusst NICHT erfasst (eigener, komplexerer Zusatzfenster-
-// Mechanismus). Enthaelt ein noch leerer Platzhalter das Wort "Datum",
-// oeffnet der Klick das spezielle Datums-/Kalender-Popover, sonst ein
+// [ZF:...] wird bewusst NICHT generell erfasst (eigener, komplexerer
+// Zusatzfenster-Mechanismus fuer Tabellen/Freitext-Eingaben) - AUSSER es ist
+// einer der (per kalenderPlatzhalter uebergebenen) Termin-Platzhalter der
+// aktuellen Vorlage: der bleibt bewusst als Text im Entwurf stehen und wird
+// erst hier zu einem Button, der direkt (ohne vorgeschaltetes Pop-up) das
+// Datums-/Kalender-Popover oeffnet. Enthaelt ein noch leerer Platzhalter das
+// Wort "Datum", oeffnet der Klick ebenfalls dieses Popover, sonst ein
 // einfaches Popover mit einem einzelnen Textfeld.
 // ----------------------------------------------------------------------------
 const KG_PLATZHALTER_REGEX = /\[\[([^[\]<>]+)\]\]|\[(?!ZF:)([^[\]<>]+)\]/g;
+function kgEscapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+function kgBauePlatzhalterRegex(kalenderPlatzhalter) {
+  const zusatz = (kalenderPlatzhalter || []).filter(Boolean).map(kgEscapeRegex);
+  const zusatzMuster = zusatz.length ? `(${zusatz.join('|')})|` : '';
+  return new RegExp(`${zusatzMuster}${KG_PLATZHALTER_REGEX.source}`, 'g');
+}
 
-function kgVerlinkePlatzhalter(html) {
+function kgVerlinkePlatzhalter(html, kalenderPlatzhalter) {
   let i = 0;
-  return html.replace(KG_PLATZHALTER_REGEX, (match, gefuellt, leer) => {
+  return html.replace(kgBauePlatzhalterRegex(kalenderPlatzhalter), (match, kalenderTreffer, gefuellt, leer) => {
     const slot = i++;
+    if (kalenderTreffer !== undefined) {
+      return `<span class="kg-platzhalter-btn" data-slot="${slot}" data-art="datum">${match}</span>`;
+    }
     if (gefuellt !== undefined) {
       return `<span class="kg-platzhalter-btn" data-slot="${slot}" data-art="gefuellt">${gefuellt}</span>`;
     }
@@ -910,8 +933,8 @@ function kgVerlinkePlatzhalter(html) {
 // Position des n-ten Platzhalters im ROHEN Text (nicht im HTML) - Reihenfolge
 // ist identisch, da kgEscape keine Klammern veraendert und daher weder
 // Anzahl noch Reihenfolge der Treffer verschiebt.
-function kgPlatzhalterPosition(text, slot) {
-  const regex = new RegExp(KG_PLATZHALTER_REGEX.source, 'g');
+function kgPlatzhalterPosition(text, slot, kalenderPlatzhalter) {
+  const regex = kgBauePlatzhalterRegex(kalenderPlatzhalter);
   let match, i = 0;
   while ((match = regex.exec(text))) {
     if (i === slot) return { start: match.index, end: match.index + match[0].length };
@@ -955,7 +978,7 @@ function kgOeffneDatumPopover(span, dieserText, chatBereich, bodyEl, zustand) {
   // so bleibt der eingetragene Termin weiterhin ein Button und laesst sich
   // spaeter per Klick nochmals aendern, statt endgueltig fixer Text zu sein.
   const ersetzeImText = (ersatz, label) => {
-    const pos = kgPlatzhalterPosition(dieserText, slot);
+    const pos = kgPlatzhalterPosition(dieserText, slot, zustand.kalenderPlatzhalter);
     schliessen();
     if (!pos) return;
     zustand.aktuellerEntwurf = dieserText.slice(0, pos.start) + `[[${ersatz}]]` + dieserText.slice(pos.end);
@@ -1013,7 +1036,7 @@ function kgOeffneDatumPopover(span, dieserText, chatBereich, bodyEl, zustand) {
       // Mehrere Termine: erst grob als Liste einsetzen, dann den umliegenden
       // Satz per eng eingegrenzter Nachbessern-Anweisung sprachlich passend
       // machen lassen - der Rest des Texts darf sich dabei nicht aendern.
-      const pos = kgPlatzhalterPosition(dieserText, slot);
+      const pos = kgPlatzhalterPosition(dieserText, slot, zustand.kalenderPlatzhalter);
       schliessen();
       if (!pos) return;
       const platzhalterText = dieserText.slice(pos.start, pos.end);
@@ -1052,7 +1075,7 @@ function kgOeffneEinfachesPlatzhalterPopover(span, dieserText, chatBereich, body
 
   const uebernehmen = () => {
     const wert = input.value.trim();
-    const pos = kgPlatzhalterPosition(dieserText, slot);
+    const pos = kgPlatzhalterPosition(dieserText, slot, zustand.kalenderPlatzhalter);
     schliessen();
     if (!pos || !wert) return;
     zustand.aktuellerEntwurf = dieserText.slice(0, pos.start) + `[[${wert}]]` + dieserText.slice(pos.end);
@@ -1144,7 +1167,7 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
   const dieserText = zustand.aktuellerEntwurf;
   const aiDiv = document.createElement('div');
   aiDiv.className = 'kg-msg kg-ai kg-aktuell';
-  aiDiv.innerHTML = `<div class="kg-bubble">${kgVerlinkePlatzhalter(kgMarkdownZuHtml(dieserText))}</div><button class="kg-diese-version">In Mail übernehmen</button>`;
+  aiDiv.innerHTML = `<div class="kg-bubble">${kgVerlinkePlatzhalter(kgMarkdownZuHtml(dieserText), zustand.kalenderPlatzhalter)}</div><button class="kg-diese-version">In Mail übernehmen</button>`;
   verlauf.appendChild(aiDiv);
   // Farbe/Form direkt hier statt nur ueber die externe CSS-Datei setzen -
   // die liess sich in Gmail schon einmal (Dropdown-Menue) nicht zuverlaessig
@@ -1708,6 +1731,22 @@ async function kgFuegeAnhaengeHinzu(anhaenge, bodyEl) {
       dataTransfer.items.add(datei);
     }
     if (!dataTransfer.files.length) return;
+
+    // Bevorzugt: das echte (versteckte) Datei-Feld hinter Gmails "Dateien
+    // anhaengen"-Button direkt befuellen - zuverlaessiger als ein simuliertes
+    // Drag&Drop, weil Gmail dafuer sein normales Datei-ausgewaehlt-Verhalten
+    // (change-Event) nutzt, das im Feld selbst ausgeloest wird statt auf
+    // Koordinaten eines Drop-Ziels angewiesen zu sein.
+    const container = kgFindeContainer(bodyEl);
+    const fileInput = container?.querySelector('input[type="file"]');
+    if (fileInput) {
+      fileInput.files = dataTransfer.files;
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
+
+    // Fallback, falls Gmail das Feld einmal anders aufbaut: simuliertes
+    // Drag&Drop auf das Mailtext-Feld.
     const macheEvent = (typ) => new DragEvent(typ, { bubbles: true, cancelable: true, dataTransfer });
     bodyEl.dispatchEvent(macheEvent('dragenter'));
     bodyEl.dispatchEvent(macheEvent('dragover'));
