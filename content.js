@@ -383,6 +383,7 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
     chip.addEventListener('click', () => {
       kgSchliesseAlleDropdowns();
       const vorlage = vorlagen.find(v => v.id === chip.dataset.id);
+      if (vorlage) zustand.anhaenge = vorlage.anhaenge || null;
       const zusatzfensterListe = vorlage ? kgZusatzfensterVon(vorlage) : [];
       if (vorlage && zusatzfensterListe.length) {
         // Strukturierte Eingabemaske(n) (z.B. Bestell-Tabelle) zuerst zeigen -
@@ -406,6 +407,7 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
         zustand.aktuellerEntwurf = vorlage.inhalt;
         zustand.aktuelleVorlageId = vorlage.id;
         if (vorlage.betreff) zustand.aktuellerBetreff = vorlage.betreff;
+        zustand.anhaenge = vorlage.anhaenge || null;
         kgZeigeEntwurf(chatBereich, bodyEl, zustand, `Vorlage: ${vorlage.titel}`);
       } else {
         // Entweder keine reine Express-Vorlage, oder eine Anrede-Praeferenz
@@ -680,7 +682,7 @@ function kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand) {
 // Popup (grosse Antwort-Vorlagen-Buttons UND die kleinen Weiterleiten-
 // Buttons je Partnerbetrieb) - unterscheiden sich nur im Payload und ob es
 // Zusatzfenster geben kann.
-async function kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, payloadZusatz, zusatzfenster) {
+async function kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, payloadZusatz, zusatzfenster, anhaenge) {
   const anweisung = ergaenzungFeld.value.trim() || undefined;
   popup.innerHTML = `<div class="kg-dunkel-spinner"></div><div class="kg-dunkel-text">Einen Moment, ich bereite die Antwort vor …</div>`;
   let chatBereich = null;
@@ -704,6 +706,7 @@ async function kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungF
     kgZeigeAntwortenErgebnis(scroll, bodyEl, zustand, {
       text: text.trim(), vorlageId: payloadZusatz.vorlageId || null,
       zusatzfenster: zusatzfenster?.length ? zusatzfenster : undefined,
+      anhaenge: anhaenge?.length ? anhaenge : undefined,
     });
   } catch (e) {
     if (chatBereich) chatBereich.innerHTML = `<div class="kg-lade" style="color:#B4655F;">Fehler: ${kgEscape(e.message)}</div>`;
@@ -727,7 +730,7 @@ function kgZeigeZweigImPopup(popup, data, scroll, bodyEl, zustand) {
   popup.querySelectorAll('.kg-dunkel-antwort').forEach(btn => {
     btn.addEventListener('click', () => {
       const gewaehlt = data.antworten.find(a => a.id === btn.dataset.id);
-      kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { vorlageId: btn.dataset.id }, gewaehlt?.zusatzfenster);
+      kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { vorlageId: btn.dataset.id }, gewaehlt?.zusatzfenster, gewaehlt?.anhaenge);
     });
   });
 }
@@ -775,7 +778,7 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   popup.querySelectorAll('.kg-ka-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const antwortInfo = data.antworten.find(a => a.id === btn.dataset.id);
-      kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { vorlageId: btn.dataset.id }, antwortInfo?.zusatzfenster);
+      kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { vorlageId: btn.dataset.id }, antwortInfo?.zusatzfenster, antwortInfo?.anhaenge);
     });
   });
   popup.querySelectorAll('.kg-ka-weiterleiten-btn:not(.kg-ka-absagen-btn)').forEach(btn => {
@@ -807,7 +810,7 @@ function kgZeigeErgaenzungImPopup(popup, data, scroll, bodyEl, zustand) {
 
   const weiter = () => {
     const payloadZusatz = data.vorlageId ? { vorlageId: data.vorlageId } : { auffangfall: true };
-    kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, payloadZusatz, data.zusatzfenster);
+    kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, payloadZusatz, data.zusatzfenster, data.anhaenge);
   };
   popup.querySelector('.kg-dunkel-weiter').addEventListener('click', weiter);
   ergaenzungFeld.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); weiter(); } });
@@ -820,6 +823,7 @@ function kgZeigeAntwortenErgebnis(scroll, bodyEl, zustand, data) {
   const chatBereich = scroll.querySelector('.kg-chat-bereich');
   zustand.aktuellerEntwurf = data.text;
   zustand.aktuelleVorlageId = data.vorlageId || zustand.aktuelleVorlageId || null;
+  zustand.anhaenge = data.anhaenge || null;
   if (data.zusatzfenster?.length) {
     // Die passende Vorlage hat z.B. einen Kalender-Baustein oder ein
     // Eingabe-Popup zugewiesen - erst die strukturierte Eingabe zeigen, die
@@ -856,6 +860,7 @@ async function kgGeneriere(payload, chatBereich, bodyEl, zustand, nutzerNachrich
       zustand.aktuellerEntwurf = data.text;
       if (payload.vorlageId) zustand.aktuelleVorlageId = payload.vorlageId;
       if (data.betreff) zustand.aktuellerBetreff = data.betreff;
+      if (data.anhaenge !== undefined) zustand.anhaenge = data.anhaenge;
       kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht);
     } else if (data.aktion === 'rueckfrage') {
       kgZeigeRueckfrage(chatBereich, data, bodyEl, zustand);
@@ -1078,6 +1083,7 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
     // Ballast. Freies Nachbessern-Feld bleibt als einfacher Korrekturweg.
     chatBereich.insertAdjacentHTML('beforeend', `
       <div class="kg-verlauf"></div>
+      ${zustand.anhaenge?.length ? `<div class="kg-anhaenge-zeile">${zustand.anhaenge.map((a, i) => `<span class="kg-anhang-chip" data-index="${i}">📎 ${kgEscape(a.dateiname)} <span class="kg-anhang-entfernen" title="Nicht mitsenden">×</span></span>`).join('')}</div>` : ''}
       ${zustand.istIntern ? '' : '<div class="kg-quickchips kg-quick-nachbessern"></div>'}
       <div class="kg-followuprow">
         ${zustand.istIntern ? '' : `<div class="kg-anrede-chips">${kgAnredeChipsHtml()}</div>`}
@@ -1085,6 +1091,16 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
         <textarea rows="1" placeholder="Nachbessern oder eigene Anweisung…"></textarea>
       </div>`);
     verlauf = chatBereich.querySelector('.kg-verlauf');
+    chatBereich.querySelectorAll('.kg-anhang-entfernen').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const chip = btn.closest('.kg-anhang-chip');
+        const index = Number(chip.dataset.index);
+        zustand.anhaenge.splice(index, 1);
+        chip.remove();
+        chatBereich.querySelectorAll('.kg-anhang-chip').forEach((c, i) => { c.dataset.index = i; });
+      });
+    });
 
     if (!zustand.istIntern) {
       // Anrede-Chips: immer fest vorhanden (unabhaengig von den anpassbaren
@@ -1141,10 +1157,15 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
   });
   uebernehmenBtn.addEventListener('mouseenter', () => { uebernehmenBtn.style.background = '#c3d454'; });
   uebernehmenBtn.addEventListener('mouseleave', () => { uebernehmenBtn.style.background = '#D1DB5F'; });
-  uebernehmenBtn.addEventListener('click', () => {
+  uebernehmenBtn.addEventListener('click', async () => {
     zustand.aktuellerEntwurf = dieserText;
     kgSetzeBetreff(zustand.aktuellerBetreff, bodyEl);
     kgUebernehmeInMail(bodyEl, dieserText);
+    if (zustand.anhaenge?.length) {
+      uebernehmenBtn.textContent = 'Anhänge werden angehängt…';
+      uebernehmenBtn.disabled = true;
+      await kgFuegeAnhaengeHinzu(zustand.anhaenge, bodyEl);
+    }
     kgSchliessePanel(zustand);
   });
   aiDiv.querySelectorAll('.kg-platzhalter-btn').forEach(span => {
@@ -1665,6 +1686,34 @@ function kgUebernehmeInMail(bodyEl, text) {
     // Falls die Bereichs-Auswahl fehlschlaegt (z.B. ungewohnte Gmail-Struktur):
     // Text einfach am aktuellen Cursor einfuegen, nichts loeschen.
     document.execCommand('insertHTML', false, html);
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Vordefinierte Vorlage-Anhaenge automatisch anhaengen: Gmail bietet dafuer
+// keine offizielle API, daher der Umweg ueber ein simuliertes Drag&Drop der
+// Dateien auf das Mailtext-Feld - genau wie beim manuellen Reinziehen aus dem
+// Explorer/Finder. Etwas fragiler als die reine Text-Uebernahme, funktioniert
+// aber zuverlaessig, solange Gmail dieses Verhalten nicht aendert.
+// ----------------------------------------------------------------------------
+async function kgFuegeAnhaengeHinzu(anhaenge, bodyEl) {
+  if (!anhaenge || !anhaenge.length) return;
+  try {
+    const dataTransfer = new DataTransfer();
+    for (const a of anhaenge) {
+      const antwort = await fetch(a.url);
+      if (!antwort.ok) continue;
+      const blob = await antwort.blob();
+      const datei = new File([blob], a.dateiname, { type: blob.type || 'application/octet-stream' });
+      dataTransfer.items.add(datei);
+    }
+    if (!dataTransfer.files.length) return;
+    const macheEvent = (typ) => new DragEvent(typ, { bubbles: true, cancelable: true, dataTransfer });
+    bodyEl.dispatchEvent(macheEvent('dragenter'));
+    bodyEl.dispatchEvent(macheEvent('dragover'));
+    bodyEl.dispatchEvent(macheEvent('drop'));
+  } catch (e) {
+    console.warn('Anhaenge konnten nicht automatisch angehaengt werden', e);
   }
 }
 

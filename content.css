@@ -90,6 +90,18 @@
 .kg-chat-first { margin-top: 0; padding-top: 0; border-top: none; }
 .kg-quickchips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 9px; }
 
+/* Anhang-Chips: zeigt die vordefinierten Dokumentanhaenge der Vorlage an,
+   bevor "In Mail uebernehmen" geklickt wird - jeder Anhang laesst sich per
+   Klick auf das x noch einzeln abwaehlen. */
+.kg-anhaenge-zeile { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 9px; }
+.kg-anhang-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #F5F7F9; border: 1px solid #E1E5E9; border-radius: 8px;
+  padding: 3px 8px; font-size: 11px; color: #323E4E;
+}
+.kg-anhang-entfernen { cursor: pointer; font-weight: 700; color: #8B9097; }
+.kg-anhang-entfernen:hover { color: #B4655F; }
+
 /* Anrede-Chips (Du/Ihr/Sie): sitzen direkt in der Mikrofon-/Eingabe-Zeile
    (davor), darum kompakt und ohne eigenen Zeilenabstand. Immer vorhanden -
    schon bevor eine Vorlage gewaehlt ist (dann nur Praeferenz merken) und
