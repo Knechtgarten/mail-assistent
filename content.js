@@ -1698,7 +1698,12 @@ function kgUebernehmeInMail(bodyEl, text) {
   const sel = window.getSelection();
   const range = document.createRange();
   const zitat = bodyEl.querySelector('blockquote, .gmail_quote');
-  const html = kgMarkdownZuHtml(text) + '<br><br>';
+  // [[Wert]] ist nur im Panel selbst ein noch klickbarer/aenderbarer
+  // Platzhalter-Button (siehe kgVerlinkePlatzhalter) - in der tatsaechlich
+  // versendeten Mail sollen dort nur die eckigen Klammern verschwinden, der
+  // Wert selbst bleibt natuerlich stehen.
+  const textOhneKlammern = text.replace(/\[\[([^[\]<>]+)\]\]/g, '$1');
+  const html = kgMarkdownZuHtml(textOhneKlammern) + '<br><br>';
   try {
     range.setStart(bodyEl, 0);
     // Ohne Zitat NICHT den ganzen Inhalt auswaehlen (das wuerde die am Ende
