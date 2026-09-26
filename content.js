@@ -596,39 +596,51 @@ async function kgAntwortenStarten(scroll, bodyEl, container, zustand) {
   // ueberhaupt zu ueberlegen beginnt (frueher lief das umgekehrt: die KI hat
   // schon eine Einordnung vorbereitet, bevor der Mitarbeiter seine Ergaenzung
   // eintippen konnte - kam dann doch noch etwas dazu, war die erste
-  // Ueberlegung meist fuer die Katz und man wartete effektiv zweimal). Die
-  // Eingabe wird als "stichworte" gleich in die Einordnung mitgegeben, damit
-  // sie diese direkt mitbeeinflusst statt erst danach nachgereicht zu werden.
+  // Ueberlegung meist fuer die Katz und man wartete effektiv zweimal). Heller
+  // Panel-Stil (wie Verfassen/Entwurf) statt dunklem Zwischen-Popup - wirkt
+  // wie Teil desselben Mailfensters statt wie ein separater Systemschritt.
+  // Die KI startet erst, wenn aktiv auf "Antwort generieren" geklickt wird
+  // (oder Enter im Feld) - kein automatisches Loslegen im Hintergrund.
   scroll.innerHTML = `
-    <div class="kg-dunkel-popup">
-      <div class="kg-dunkel-chips-wrap"></div>
-      <div class="kg-dunkel-text">Möchtest du noch etwas ergänzen?</div>
-      ${kgDunkelErgaenzungHtml('Optional … (Enter für weiter)')}
-      <button type="button" class="kg-dunkel-weiter">Weiter</button>
+    <div class="kg-antworten-start">
+      <div class="kg-chips-wrap"></div>
+      <div class="kg-row">
+        <button class="kg-micbtn" title="Diktieren">${kgSvg(KG_ICON_MIC)}</button>
+        <textarea class="kg-textarea" rows="1" placeholder="Eigene Stichworte oder Anweisung … (Enter zum Erstellen)"></textarea>
+      </div>
+      <button type="button" class="kg-antwort-generieren">Antwort generieren</button>
     </div>`;
-  const popup = scroll.querySelector('.kg-dunkel-popup');
-  const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
+  const startPanel = scroll.querySelector('.kg-antworten-start');
+  const ergaenzungFeld = startPanel.querySelector('.kg-textarea');
   kgAutoWachsen(ergaenzungFeld);
-  kgAktiviereMikrofon(popup.querySelector('.kg-dunkel-micbtn'), ergaenzungFeld);
+  kgSchuetzeFokus(ergaenzungFeld);
+  kgAktiviereMikrofon(startPanel.querySelector('.kg-micbtn'), ergaenzungFeld);
   ergaenzungFeld.focus();
 
   const weiter = () => {
     const stichworte = ergaenzungFeld.value.trim() || undefined;
     kgStarteKlassifizierung(scroll, bodyEl, zustand, istIntern, stichworte);
   };
-  popup.querySelector('.kg-dunkel-weiter').addEventListener('click', weiter);
+  startPanel.querySelector('.kg-antwort-generieren').addEventListener('click', weiter);
   ergaenzungFeld.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); weiter(); } });
 
   // Schnellauswahl-Vorlagen (aus der Verfassen-Liste, dort einzeln dafuer
   // freigegeben) laden - bewusst NICHT das Ergaenzen-Feld blockieren, das
   // steht schon bereit und ist fokussiert, die Buttons poppen nach, sobald
-  // geladen. Ein Klick darauf ueberspringt die KI-Einordnung komplett.
+  // geladen. Ein Klick darauf ueberspringt die KI-Einordnung komplett. Die
+  // Liste wird auch im zustand gemerkt, damit sie im fertigen Entwurf
+  // (kgZeigeEntwurf) erneut als Schnellauswahl oben stehen kann.
   try {
     const res = await kgRufeApiAuf({ modus: 'liste-verfassen' });
-    const chipsWrap = popup.querySelector('.kg-dunkel-chips-wrap');
+    zustand.antwortenVorlagenListe = res.vorlagen || [];
+    const chipsWrap = startPanel.querySelector('.kg-chips-wrap');
     if (!chipsWrap) return;
-    kgBauAntwortenVorlagenChips(chipsWrap, res.vorlagen || [], (vorlage) => {
-      kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { vorlageId: vorlage.id }, kgZusatzfensterVon(vorlage), vorlage.anhaenge);
+    kgBauAntwortenVorlagenChips(chipsWrap, zustand.antwortenVorlagenListe, (vorlage) => {
+      kgKaGeneriereUndZeige(
+        startPanel, scroll, bodyEl, zustand, ergaenzungFeld, { vorlageId: vorlage.id },
+        kgZusatzfensterVon(vorlage), vorlage.anhaenge,
+        '<div class="kg-lade">Einen Moment, ich erstelle die Antwort mit dieser Vorlage …</div>'
+      );
     });
   } catch (e) { /* Schnellauswahl bleibt dann einfach leer, Ergaenzen-Weg funktioniert trotzdem */ }
 }
@@ -643,26 +655,26 @@ function kgBauAntwortenVorlagenChips(wrapEl, alleVorlagen, onKlick) {
   const kinderVon = (elternId) => alleVorlagen.filter(v => v.parent_id === elternId && v.zeigt_bei_antworten);
   const obersteEbene = alleVorlagen.filter(v => !v.parent_id
     && (v.typ === 'dropdown' ? kinderVon(v.id).length > 0 : v.zeigt_bei_antworten));
-  if (!obersteEbene.length) return;
+  if (!obersteEbene.length) { wrapEl.innerHTML = ''; return; }
 
-  const chipHtml = (v) => `<span class="kg-dunkel-chip" data-id="${v.id}">${kgEscape(v.titel)}</span>`;
+  const chipHtml = (v) => `<span class="kg-chip" data-id="${v.id}">${kgEscape(v.titel)}</span>`;
   wrapEl.innerHTML = `
-    <div class="kg-dunkel-chips">${obersteEbene.map(v => v.typ === 'dropdown'
-      ? `<span class="kg-dunkel-chip kg-dunkel-chip-dropdown" data-dropdown-id="${v.id}">${kgEscape(v.titel)}${kgSvg(KG_ICON_CHEVRON, 13)}</span>`
+    <div class="kg-chips">${obersteEbene.map(v => v.typ === 'dropdown'
+      ? `<span class="kg-chip kg-chip-dropdown" data-dropdown-id="${v.id}">${kgEscape(v.titel)}${kgSvg(KG_ICON_CHEVRON, 13)}</span>`
       : chipHtml(v)
     ).join('')}</div>
     ${obersteEbene.filter(v => v.typ === 'dropdown').map(gruppe => `
-      <div class="kg-dunkel-chips kg-dunkel-dropdown-submenu" data-dropdown-id="${gruppe.id}">${kinderVon(gruppe.id).map(chipHtml).join('')}</div>
+      <div class="kg-chips kg-dropdown-submenu" data-dropdown-id="${gruppe.id}">${kinderVon(gruppe.id).map(chipHtml).join('')}</div>
     `).join('')}`;
 
   const schliesseAlle = () => {
-    wrapEl.querySelectorAll('.kg-dunkel-dropdown-submenu').forEach(s => { s.style.display = 'none'; });
-    wrapEl.querySelectorAll('.kg-dunkel-chip-dropdown').forEach(b => b.classList.remove('kg-chip-aktiv'));
+    wrapEl.querySelectorAll('.kg-dropdown-submenu').forEach(s => { s.style.display = 'none'; });
+    wrapEl.querySelectorAll('.kg-chip-dropdown').forEach(b => b.classList.remove('kg-chip-aktiv'));
   };
-  wrapEl.querySelectorAll('.kg-dunkel-chip-dropdown').forEach(btn => {
+  wrapEl.querySelectorAll('.kg-chip-dropdown').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const submenu = wrapEl.querySelector(`.kg-dunkel-dropdown-submenu[data-dropdown-id="${btn.dataset.dropdownId}"]`);
+      const submenu = wrapEl.querySelector(`.kg-dropdown-submenu[data-dropdown-id="${btn.dataset.dropdownId}"]`);
       const warOffen = submenu.style.display !== 'none';
       schliesseAlle();
       if (!warOffen) {
@@ -677,12 +689,12 @@ function kgBauAntwortenVorlagenChips(wrapEl, alleVorlagen, onKlick) {
   });
   // Klick irgendwo ausserhalb schliesst ein offenes Dropdown wieder - der
   // Listener raeumt sich selbst ab, sobald wrapEl nicht mehr im DOM haengt
-  // (z.B. weil der Mitarbeiter inzwischen "Weiter" geklickt hat).
+  // (z.B. weil inzwischen ein Entwurf steht und diese Zeile neu aufgebaut wurde).
   document.addEventListener('click', function aussenKlick(e) {
     if (!wrapEl.isConnected) { document.removeEventListener('click', aussenKlick); return; }
-    if (!e.target.closest('.kg-dunkel-chip-dropdown') && !e.target.closest('.kg-dunkel-dropdown-submenu')) schliesseAlle();
+    if (!e.target.closest('.kg-chip-dropdown') && !e.target.closest('.kg-dropdown-submenu')) schliesseAlle();
   });
-  wrapEl.querySelectorAll('.kg-dunkel-chips .kg-dunkel-chip:not(.kg-dunkel-chip-dropdown)').forEach(chip => {
+  wrapEl.querySelectorAll('.kg-chips .kg-chip:not(.kg-chip-dropdown)').forEach(chip => {
     chip.addEventListener('click', () => {
       schliesseAlle();
       const vorlage = alleVorlagen.find(v => v.id === chip.dataset.id);
@@ -806,9 +818,9 @@ function kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand, vorbefue
 // Popup (grosse Antwort-Vorlagen-Buttons UND die kleinen Weiterleiten-
 // Buttons je Partnerbetrieb) - unterscheiden sich nur im Payload und ob es
 // Zusatzfenster geben kann.
-async function kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, payloadZusatz, zusatzfenster, anhaenge) {
+async function kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, payloadZusatz, zusatzfenster, anhaenge, ladeHtml) {
   const anweisung = ergaenzungFeld.value.trim() || undefined;
-  popup.innerHTML = `<div class="kg-dunkel-spinner"></div><div class="kg-dunkel-text">Einen Moment, ich bereite die Antwort vor …</div>`;
+  popup.innerHTML = ladeHtml || `<div class="kg-dunkel-spinner"></div><div class="kg-dunkel-text">Einen Moment, ich bereite die Antwort vor …</div>`;
   let chatBereich = null;
   let liveBubble = null;
   const payload = { modus: 'auswahl-antwort', anweisung, mailInhalt: zustand.mailInhalt, mitarbeiterEmail: kgHoleMitarbeiterEmail(), ...payloadZusatz };
@@ -1212,6 +1224,7 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
     // Du/Sie) - bei einer knappen "Ist ok, mache ich."-Antwort unnoetiger
     // Ballast. Freies Nachbessern-Feld bleibt als einfacher Korrekturweg.
     chatBereich.insertAdjacentHTML('beforeend', `
+      ${zustand.antwortenVorlagenListe?.length ? '<div class="kg-chips-wrap kg-entwurf-vorlagen-chips"></div>' : ''}
       <div class="kg-verlauf"></div>
       ${zustand.anhaenge?.length ? `<div class="kg-anhaenge-zeile">${zustand.anhaenge.map((a, i) => `<span class="kg-anhang-chip" data-index="${i}">📎 ${kgEscape(a.dateiname)} <span class="kg-anhang-entfernen" title="Nicht mitsenden">×</span></span>`).join('')}</div>` : ''}
       ${zustand.istIntern ? '' : '<div class="kg-quickchips kg-quick-nachbessern"></div>'}
@@ -1221,6 +1234,22 @@ function kgZeigeEntwurf(chatBereich, bodyEl, zustand, nutzerNachricht) {
         <textarea rows="1" placeholder="Nachbessern oder eigene Anweisung…"></textarea>
       </div>`);
     verlauf = chatBereich.querySelector('.kg-verlauf');
+
+    // Vorlagen-Schnellauswahl bleibt auch NACH dem ersten Entwurf sichtbar -
+    // ein Klick verwirft den bisherigen Verlauf und erstellt die Antwort neu
+    // mit dieser Vorlage (z.B. wenn die KI/die erste Wahl doch nicht passte).
+    const vorlagenChipsWrap = chatBereich.querySelector('.kg-entwurf-vorlagen-chips');
+    if (vorlagenChipsWrap) {
+      kgBauAntwortenVorlagenChips(vorlagenChipsWrap, zustand.antwortenVorlagenListe, (vorlage) => {
+        const scroll = chatBereich.closest('.kg-scroll');
+        const eingabe = chatBereich.querySelector('.kg-followuprow textarea');
+        kgKaGeneriereUndZeige(
+          chatBereich, scroll, bodyEl, zustand, eingabe || { value: '' }, { vorlageId: vorlage.id },
+          kgZusatzfensterVon(vorlage), vorlage.anhaenge,
+          '<div class="kg-lade">Einen Moment, ich erstelle die Antwort mit dieser Vorlage …</div>'
+        );
+      });
+    }
     chatBereich.querySelectorAll('.kg-anhang-entfernen').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
