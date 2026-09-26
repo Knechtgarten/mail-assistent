@@ -838,6 +838,17 @@ async function kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungF
         chatBereich.scrollTop = chatBereich.scrollHeight;
       }
     );
+    // Falls die Antwort komplett leer zurueckkam, wurde der Live-Callback nie
+    // aufgerufen und chatBereich blieb null - dann hier nachholen, statt auf
+    // null abzustuerzen.
+    if (!chatBereich) {
+      scroll.innerHTML = '<div class="kg-chat-bereich"></div>';
+      chatBereich = scroll.querySelector('.kg-chat-bereich');
+    }
+    if (!text.trim()) {
+      chatBereich.innerHTML = `<div class="kg-lade" style="color:#B4655F;">Die KI hat keine Antwort geliefert - bitte nochmals versuchen.</div>`;
+      return;
+    }
     chatBereich.innerHTML = '';
     kgZeigeAntwortenErgebnis(scroll, bodyEl, zustand, {
       text: text.trim(), vorlageId: payloadZusatz.vorlageId || null,
