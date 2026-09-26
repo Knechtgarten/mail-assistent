@@ -571,51 +571,90 @@ async function kgStarteAntworten(panel, bodyEl, container, zustand) {
   kgAntwortenStarten(scroll, bodyEl, container, zustand);
 }
 
-// Dunkles Popup (bewusst gleiche Farbe wie der Mail-Assistent-Button):
-// zeigt zuerst "am Ueberlegen". Trifft eine Rueckfrage-Vorlage zu, bleibt
-// das Popup stehen und zeigt Frage + Antworten uebereinander, dazu unten
-// ein optionales Ergaenzungsfeld. Trifft keine zu, fragt das Popup kurz
-// nach, ob noch etwas ergaenzt werden soll, bevor das (helle) Mail-Fenster
-// mit dem fertigen Entwurf aufgeht - so bleibt man bis zum Schluss "noch
-// nicht im Mail drin" und kann jederzeit noch etwas dazugeben.
+// Dunkles Popup (bewusst gleiche Farbe wie der Mail-Assistent-Button): fragt
+// bei einer externen Mail ZUERST, ob noch etwas ergaenzt werden soll (ohne
+// dass die KI vorher schon "am Ueberlegen" war), erst danach beginnt die
+// eigentliche Einordnung in kgStarteKlassifizierung. Trifft dort eine
+// Rueckfrage-Vorlage zu, bleibt das Popup stehen und zeigt Frage + Antworten
+// uebereinander (mit der schon eingegebenen Ergaenzung vorbefuellt). Sonst
+// geht es direkt weiter zum fertigen Entwurf im (hellen) Mail-Fenster.
 async function kgAntwortenStarten(scroll, bodyEl, container, zustand) {
+  zustand.mailInhalt = kgHoleMailInhalt(bodyEl, container);
+  const absender = kgHoleAbsenderEmail(bodyEl);
+  const istIntern = !!absender && absender.toLowerCase().endsWith('@knechtgarten.ch');
+  zustand.istIntern = istIntern;
+
+  if (istIntern) {
+    // Interne Kollegen-Mail: kein "noch was ergaenzen?"-Zwischenschritt,
+    // direkt zum fertigen (knappen) Entwurf.
+    kgStarteKlassifizierung(scroll, bodyEl, zustand, istIntern, undefined);
+    return;
+  }
+
+  // Extern: ZUERST fragen, ob noch etwas ergaenzt werden soll - BEVOR die KI
+  // ueberhaupt zu ueberlegen beginnt (frueher lief das umgekehrt: die KI hat
+  // schon eine Einordnung vorbereitet, bevor der Mitarbeiter seine Ergaenzung
+  // eintippen konnte - kam dann doch noch etwas dazu, war die erste
+  // Ueberlegung meist fuer die Katz und man wartete effektiv zweimal). Die
+  // Eingabe wird als "stichworte" gleich in die Einordnung mitgegeben, damit
+  // sie diese direkt mitbeeinflusst statt erst danach nachgereicht zu werden.
+  scroll.innerHTML = `
+    <div class="kg-dunkel-popup">
+      <div class="kg-dunkel-text">Möchtest du noch etwas ergänzen?</div>
+      ${kgDunkelErgaenzungHtml('Optional … (Enter für weiter)')}
+      <button type="button" class="kg-dunkel-weiter">Weiter</button>
+    </div>`;
+  const popup = scroll.querySelector('.kg-dunkel-popup');
+  const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
+  kgAutoWachsen(ergaenzungFeld);
+  kgAktiviereMikrofon(popup.querySelector('.kg-dunkel-micbtn'), ergaenzungFeld);
+  ergaenzungFeld.focus();
+
+  const weiter = () => {
+    const stichworte = ergaenzungFeld.value.trim() || undefined;
+    kgStarteKlassifizierung(scroll, bodyEl, zustand, istIntern, stichworte);
+  };
+  popup.querySelector('.kg-dunkel-weiter').addEventListener('click', weiter);
+  ergaenzungFeld.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); weiter(); } });
+}
+
+// Eigentliche Einordnung (Vorlage/Zweig/Rueckfrage) - erst ab hier beginnt
+// die KI zu ueberlegen, mit einer eventuellen Ergaenzung des Mitarbeiters
+// schon inklusive (siehe kgAntwortenStarten).
+async function kgStarteKlassifizierung(scroll, bodyEl, zustand, istIntern, stichworte) {
   scroll.innerHTML = `
     <div class="kg-dunkel-popup">
       <div class="kg-dunkel-spinner"></div>
       <div class="kg-dunkel-text">Einen Moment, ich bereite die Antwort vor …</div>
     </div>`;
   const popup = scroll.querySelector('.kg-dunkel-popup');
-
-  zustand.mailInhalt = kgHoleMailInhalt(bodyEl, container);
-  const absender = kgHoleAbsenderEmail(bodyEl);
-  const istIntern = !!absender && absender.toLowerCase().endsWith('@knechtgarten.ch');
-  zustand.istIntern = istIntern;
-
   try {
-    const data = await kgRufeApiAuf({ modus: 'antworten', mailInhalt: zustand.mailInhalt, intern: istIntern, mitarbeiterEmail: kgHoleMitarbeiterEmail() });
+    const data = await kgRufeApiAuf({ modus: 'antworten', mailInhalt: zustand.mailInhalt, intern: istIntern, mitarbeiterEmail: kgHoleMitarbeiterEmail(), stichworte });
     if (data.aktion === 'rueckfrage' || data.aktion === 'auswahl') {
       // "auswahl": die KI war sich zwischen zwei aehnlichen Vorlagen unsicher
       // - gleiches Popup wie bei einer echten Rueckfrage (Frage + Buttons
       // uebereinander), nur dass die Buttons hier Vorlagen-Titel statt
       // vordefinierter Antwort-Zweige sind.
-      kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand);
+      kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand, stichworte);
     } else if (data.aktion === 'zweig' && data.hatDistanzlogik) {
       // Zweig mit Ast-Funktion "distanzlogik" (z.B. Kundenanfragen): keine
       // automatische Entscheidung, der Mitarbeiter waehlt manuell aus allen
       // moeglichen Antworten - dafuer eigenes Layout mit zwei Buttons-Spalten
       // + Info-Spalte (Distanz).
-      kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand);
+      kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand, stichworte);
     } else if (data.aktion === 'zweig') {
       // Ast/Zweig-Modell: ein Zweig mit Aktionstyp "Mitarbeiter entscheidet"
       // - KI erkennt nur den Zweig, der Mitarbeiter waehlt manuell die
       // passende Vorlage aus (frage_mitarbeiter erscheint als Ueberschrift).
-      kgZeigeZweigImPopup(popup, data, scroll, bodyEl, zustand);
+      kgZeigeZweigImPopup(popup, data, scroll, bodyEl, zustand, stichworte);
     } else if (istIntern) {
-      // Interne Kollegen-Mail: kein "noch was ergaenzen?"-Zwischenschritt,
-      // direkt zum fertigen (knappen) Entwurf.
       kgZeigeAntwortenErgebnis(scroll, bodyEl, zustand, data);
     } else {
-      kgZeigeErgaenzungImPopup(popup, data, scroll, bodyEl, zustand);
+      // Direkter Entwurf/Auffangfall: die Ergaenzung wurde schon vorhin
+      // eingesammelt - kein zweites "noch was ergaenzen?" noetig, direkt
+      // weiter zur (gestreamten) Text-Erzeugung.
+      const payloadZusatz = data.vorlageId ? { vorlageId: data.vorlageId } : { auffangfall: true };
+      kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, { value: stichworte || '' }, payloadZusatz, data.zusatzfenster, data.anhaenge);
     }
   } catch (e) {
     popup.innerHTML = `<div class="kg-dunkel-text">Fehler: ${kgEscape(e.message)}</div>`;
@@ -632,7 +671,7 @@ function kgDunkelErgaenzungHtml(placeholder) {
     </div>`;
 }
 
-function kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand) {
+function kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand, vorbefuellt) {
   popup.innerHTML = `
     <div class="kg-dunkel-frage">${kgEscape(data.frage)}</div>
     <div class="kg-dunkel-antworten">${data.antworten.map(a => `<button type="button" class="kg-dunkel-antwort" data-label="${kgEscape(a.label)}">${kgEscape(a.label)}</button>`).join('')}</div>
@@ -640,6 +679,7 @@ function kgZeigeRueckfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
   kgAutoWachsen(ergaenzungFeld);
   kgAktiviereMikrofon(popup.querySelector('.kg-dunkel-micbtn'), ergaenzungFeld);
+  if (vorbefuellt) { ergaenzungFeld.value = vorbefuellt; ergaenzungFeld.dispatchEvent(new Event('input')); }
   popup.querySelectorAll('.kg-dunkel-antwort').forEach(btn => {
     btn.addEventListener('click', async () => {
       const anweisung = ergaenzungFeld.value.trim() || undefined;
@@ -730,7 +770,7 @@ async function kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungF
 // vorlageId) statt rueckfrage-antwort erzeugt. Ueberschrift ist die vom Admin
 // hinterlegte "Frage an den Mitarbeiter" (frage_mitarbeiter), falls schon
 // erfasst - sonst als Rueckfall der Zweig-Titel.
-function kgZeigeZweigImPopup(popup, data, scroll, bodyEl, zustand) {
+function kgZeigeZweigImPopup(popup, data, scroll, bodyEl, zustand, vorbefuellt) {
   popup.innerHTML = `
     <div class="kg-dunkel-frage">${kgEscape(data.frage || data.titel)}</div>
     <div class="kg-dunkel-antworten">${data.antworten.map(a => `<button type="button" class="kg-dunkel-antwort" data-id="${kgEscape(a.id)}">${kgEscape(a.label)}</button>`).join('')}</div>
@@ -738,6 +778,7 @@ function kgZeigeZweigImPopup(popup, data, scroll, bodyEl, zustand) {
   const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
   kgAutoWachsen(ergaenzungFeld);
   kgAktiviereMikrofon(popup.querySelector('.kg-dunkel-micbtn'), ergaenzungFeld);
+  if (vorbefuellt) { ergaenzungFeld.value = vorbefuellt; ergaenzungFeld.dispatchEvent(new Event('input')); }
   popup.querySelectorAll('.kg-dunkel-antwort').forEach(btn => {
     btn.addEventListener('click', () => {
       const gewaehlt = data.antworten.find(a => a.id === btn.dataset.id);
@@ -746,7 +787,7 @@ function kgZeigeZweigImPopup(popup, data, scroll, bodyEl, zustand) {
   });
 }
 
-function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
+function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand, vorbefuellt) {
   const zeigeInfo = !!(data.distanz || data.hinweistext || data.kundenStandort);
   const partnerListe = data.distanz?.partner || [];
   // Von den Partnerbetrieben nur der naechstgelegene wird gruen hervorgehoben
@@ -786,6 +827,7 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
   const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
   kgAutoWachsen(ergaenzungFeld);
   kgAktiviereMikrofon(popup.querySelector('.kg-dunkel-micbtn'), ergaenzungFeld);
+  if (vorbefuellt) { ergaenzungFeld.value = vorbefuellt; ergaenzungFeld.dispatchEvent(new Event('input')); }
   popup.querySelectorAll('.kg-ka-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const antwortInfo = data.antworten.find(a => a.id === btn.dataset.id);
@@ -802,29 +844,6 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand) {
     e.stopPropagation();
     kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { eigeneAbsage: true, astId: data.astId }, undefined);
   });
-}
-
-// Klassifizierung liefert bei Fall 1 nur noch die Einordnung (vorlageId oder
-// null fuer Auffangfall), noch KEINEN Text - der wird erst hier erzeugt,
-// gestreamt ueber kgKaGeneriereUndZeige (gleicher Mechanismus wie bei Zweig-/
-// Kundenanfrage-Antworten), damit der Text ueberall Wort fuer Wort erscheint
-// statt dass man auf den kompletten Block warten muss.
-function kgZeigeErgaenzungImPopup(popup, data, scroll, bodyEl, zustand) {
-  popup.innerHTML = `
-    <div class="kg-dunkel-text">Möchtest du noch etwas ergänzen?</div>
-    ${kgDunkelErgaenzungHtml('Optional … (Enter für weiter)')}
-    <button type="button" class="kg-dunkel-weiter">Weiter</button>`;
-  const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
-  kgAutoWachsen(ergaenzungFeld);
-  kgAktiviereMikrofon(popup.querySelector('.kg-dunkel-micbtn'), ergaenzungFeld);
-  ergaenzungFeld.focus();
-
-  const weiter = () => {
-    const payloadZusatz = data.vorlageId ? { vorlageId: data.vorlageId } : { auffangfall: true };
-    kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, payloadZusatz, data.zusatzfenster, data.anhaenge);
-  };
-  popup.querySelector('.kg-dunkel-weiter').addEventListener('click', weiter);
-  ergaenzungFeld.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); weiter(); } });
 }
 
 // Wechselt vom dunklen Popup ins normale (helle) Mail-Fenster mit dem
