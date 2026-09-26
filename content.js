@@ -322,8 +322,9 @@ async function kgZeigeVerfassenChips(panel, bodyEl, zustand) {
   // Dropdown direkt unter dem jeweiligen Button (per JS positioniert, da die
   // Chips zeilenumbrechen) - anders als beim grossen Panel frueher ist das
   // hier ein kleiner, begrenzter Bereich, darum unproblematisch.
-  const obersteEbene = vorlagen.filter(v => !v.parent_id);
-  const kinderVon = (elternId) => vorlagen.filter(v => v.parent_id === elternId);
+  const kinderVon = (elternId) => vorlagen.filter(v => v.parent_id === elternId && v.zeigt_bei_verfassen !== false);
+  const obersteEbene = vorlagen.filter(v => !v.parent_id
+    && (v.typ === 'dropdown' ? kinderVon(v.id).length > 0 : v.zeigt_bei_verfassen !== false));
   const chipHtml = (v) => `<span class="kg-chip${istExpress(v) ? ' kg-chip-express' : ''}" data-id="${v.id}" title="${istExpress(v) ? 'Express - wird sofort eingefuegt' : ''}">${kgEscape(v.titel)}</span>`;
 
   scroll.innerHTML = `
@@ -600,6 +601,7 @@ async function kgAntwortenStarten(scroll, bodyEl, container, zustand) {
   // sie diese direkt mitbeeinflusst statt erst danach nachgereicht zu werden.
   scroll.innerHTML = `
     <div class="kg-dunkel-popup">
+      <div class="kg-dunkel-chips-wrap"></div>
       <div class="kg-dunkel-text">Möchtest du noch etwas ergänzen?</div>
       ${kgDunkelErgaenzungHtml('Optional … (Enter für weiter)')}
       <button type="button" class="kg-dunkel-weiter">Weiter</button>
@@ -616,6 +618,77 @@ async function kgAntwortenStarten(scroll, bodyEl, container, zustand) {
   };
   popup.querySelector('.kg-dunkel-weiter').addEventListener('click', weiter);
   ergaenzungFeld.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); weiter(); } });
+
+  // Schnellauswahl-Vorlagen (aus der Verfassen-Liste, dort einzeln dafuer
+  // freigegeben) laden - bewusst NICHT das Ergaenzen-Feld blockieren, das
+  // steht schon bereit und ist fokussiert, die Buttons poppen nach, sobald
+  // geladen. Ein Klick darauf ueberspringt die KI-Einordnung komplett.
+  try {
+    const res = await kgRufeApiAuf({ modus: 'liste-verfassen' });
+    const chipsWrap = popup.querySelector('.kg-dunkel-chips-wrap');
+    if (!chipsWrap) return;
+    kgBauAntwortenVorlagenChips(chipsWrap, res.vorlagen || [], (vorlage) => {
+      kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { vorlageId: vorlage.id }, kgZusatzfensterVon(vorlage), vorlage.anhaenge);
+    });
+  } catch (e) { /* Schnellauswahl bleibt dann einfach leer, Ergaenzen-Weg funktioniert trotzdem */ }
+}
+
+// Baut die Schnellauswahl-Chips (inkl. Dropdown-Gruppen wie z.B.
+// "Preisanfrage") fuer den Antworten-Ablauf - gleiche Optik/Logik wie beim
+// Verfassen (siehe kgZeigeVerfassenChips), aber unabhaengig: nur Vorlagen mit
+// zeigt_bei_antworten erscheinen hier, eine Dropdown-Gruppe nur, wenn
+// mindestens eine ihrer Vorlagen dafuer freigegeben ist (sonst ein leerer,
+// nutzloser Button). onKlick(vorlage) startet direkt die Antwort-Erzeugung.
+function kgBauAntwortenVorlagenChips(wrapEl, alleVorlagen, onKlick) {
+  const kinderVon = (elternId) => alleVorlagen.filter(v => v.parent_id === elternId && v.zeigt_bei_antworten);
+  const obersteEbene = alleVorlagen.filter(v => !v.parent_id
+    && (v.typ === 'dropdown' ? kinderVon(v.id).length > 0 : v.zeigt_bei_antworten));
+  if (!obersteEbene.length) return;
+
+  const chipHtml = (v) => `<span class="kg-dunkel-chip" data-id="${v.id}">${kgEscape(v.titel)}</span>`;
+  wrapEl.innerHTML = `
+    <div class="kg-dunkel-chips">${obersteEbene.map(v => v.typ === 'dropdown'
+      ? `<span class="kg-dunkel-chip kg-dunkel-chip-dropdown" data-dropdown-id="${v.id}">${kgEscape(v.titel)}${kgSvg(KG_ICON_CHEVRON, 13)}</span>`
+      : chipHtml(v)
+    ).join('')}</div>
+    ${obersteEbene.filter(v => v.typ === 'dropdown').map(gruppe => `
+      <div class="kg-dunkel-chips kg-dunkel-dropdown-submenu" data-dropdown-id="${gruppe.id}">${kinderVon(gruppe.id).map(chipHtml).join('')}</div>
+    `).join('')}`;
+
+  const schliesseAlle = () => {
+    wrapEl.querySelectorAll('.kg-dunkel-dropdown-submenu').forEach(s => { s.style.display = 'none'; });
+    wrapEl.querySelectorAll('.kg-dunkel-chip-dropdown').forEach(b => b.classList.remove('kg-chip-aktiv'));
+  };
+  wrapEl.querySelectorAll('.kg-dunkel-chip-dropdown').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const submenu = wrapEl.querySelector(`.kg-dunkel-dropdown-submenu[data-dropdown-id="${btn.dataset.dropdownId}"]`);
+      const warOffen = submenu.style.display !== 'none';
+      schliesseAlle();
+      if (!warOffen) {
+        const wrapRect = wrapEl.getBoundingClientRect();
+        const btnRect = btn.getBoundingClientRect();
+        submenu.style.top = Math.round(btnRect.bottom - wrapRect.top + 4) + 'px';
+        submenu.style.left = Math.round(btnRect.left - wrapRect.left) + 'px';
+        submenu.style.display = 'flex';
+        btn.classList.add('kg-chip-aktiv');
+      }
+    });
+  });
+  // Klick irgendwo ausserhalb schliesst ein offenes Dropdown wieder - der
+  // Listener raeumt sich selbst ab, sobald wrapEl nicht mehr im DOM haengt
+  // (z.B. weil der Mitarbeiter inzwischen "Weiter" geklickt hat).
+  document.addEventListener('click', function aussenKlick(e) {
+    if (!wrapEl.isConnected) { document.removeEventListener('click', aussenKlick); return; }
+    if (!e.target.closest('.kg-dunkel-chip-dropdown') && !e.target.closest('.kg-dunkel-dropdown-submenu')) schliesseAlle();
+  });
+  wrapEl.querySelectorAll('.kg-dunkel-chips .kg-dunkel-chip:not(.kg-dunkel-chip-dropdown)').forEach(chip => {
+    chip.addEventListener('click', () => {
+      schliesseAlle();
+      const vorlage = alleVorlagen.find(v => v.id === chip.dataset.id);
+      if (vorlage) onKlick(vorlage);
+    });
+  });
 }
 
 // Eigentliche Einordnung (Vorlage/Zweig/Rueckfrage) - erst ab hier beginnt
