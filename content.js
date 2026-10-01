@@ -870,7 +870,8 @@ function kgZeigeZweigImPopup(popup, data, scroll, bodyEl, zustand, vorbefuellt) 
   popup.innerHTML = `
     <div class="kg-dunkel-frage">${kgEscape(data.frage || data.titel)}</div>
     <div class="kg-dunkel-antworten">${data.antworten.map(a => `<button type="button" class="kg-dunkel-antwort" data-id="${kgEscape(a.id)}">${kgEscape(a.label)}</button>`).join('')}</div>
-    ${kgDunkelErgaenzungHtml('Optional: noch etwas ergänzen …')}`;
+    ${kgDunkelErgaenzungHtml('Eigener Text - ohne Button als eigene Antwort, mit Button als Ergänzung dazu …')}
+    <button type="button" class="kg-dunkel-weiter kg-dunkel-frei-generieren">Antwort generieren</button>`;
   const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
   kgAutoWachsen(ergaenzungFeld);
   kgAktiviereMikrofon(popup.querySelector('.kg-dunkel-micbtn'), ergaenzungFeld);
@@ -881,6 +882,15 @@ function kgZeigeZweigImPopup(popup, data, scroll, bodyEl, zustand, vorbefuellt) 
       kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { vorlageId: btn.dataset.id }, gewaehlt?.zusatzfenster, gewaehlt?.anhaenge);
     });
   });
+  // Kein Button noetig: der eigene Text allein (ohne Vorlagen-Bezug) wird
+  // wie ein Auffangfall behandelt - gleicher Mechanismus wie beim "Antwort
+  // generieren" im hellen Start-Panel.
+  const freiGenerieren = () => {
+    if (!ergaenzungFeld.value.trim()) return;
+    kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, {}, undefined, undefined);
+  };
+  popup.querySelector('.kg-dunkel-frei-generieren').addEventListener('click', freiGenerieren);
+  ergaenzungFeld.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); freiGenerieren(); } });
 }
 
 function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand, vorbefuellt) {
@@ -919,7 +929,8 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand, vorbe
   popup.innerHTML = `
     <div class="kg-dunkel-frage">${kgEscape(data.frage || data.titel || 'Kundenanfrage')}</div>
     ${zeigeInfo ? `<div class="kg-ka-layout">${buttonsHtml}${infoHtml}</div>` : buttonsHtml}
-    ${kgDunkelErgaenzungHtml('Optional: noch etwas ergänzen …')}`;
+    ${kgDunkelErgaenzungHtml('Eigener Text - ohne Button als eigene Antwort, mit Button als Ergänzung dazu …')}
+    <button type="button" class="kg-dunkel-weiter kg-dunkel-frei-generieren">Antwort generieren</button>`;
   const ergaenzungFeld = popup.querySelector('.kg-dunkel-ergaenzung');
   kgAutoWachsen(ergaenzungFeld);
   kgAktiviereMikrofon(popup.querySelector('.kg-dunkel-micbtn'), ergaenzungFeld);
@@ -940,6 +951,15 @@ function kgZeigeKundenanfrageImPopup(popup, data, scroll, bodyEl, zustand, vorbe
     e.stopPropagation();
     kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, { eigeneAbsage: true, astId: data.astId }, undefined);
   });
+  // Kein Button noetig: der eigene Text allein (ohne Vorlagen-Bezug) wird
+  // wie ein Auffangfall behandelt - gleicher Mechanismus wie beim "Antwort
+  // generieren" im hellen Start-Panel.
+  const freiGenerieren = () => {
+    if (!ergaenzungFeld.value.trim()) return;
+    kgKaGeneriereUndZeige(popup, scroll, bodyEl, zustand, ergaenzungFeld, {}, undefined, undefined);
+  };
+  popup.querySelector('.kg-dunkel-frei-generieren').addEventListener('click', freiGenerieren);
+  ergaenzungFeld.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); freiGenerieren(); } });
 }
 
 // Wechselt vom dunklen Popup ins normale (helle) Mail-Fenster mit dem
